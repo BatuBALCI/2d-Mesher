@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <math.h>
 #include <functional>
+#include <fstream>
 
 namespace DoublyConnectedList
 {
@@ -84,10 +85,12 @@ namespace DoublyConnectedList
 		Face() = default;
 		double calculateArea();
 		double calculatePerimeter();
+		void calculateEdgeCount();
+		int getEdgeCount();
 		void setHalfEdge(std::shared_ptr<DoublyConnectedList::HalfEdge> halfEdge);
 		std::shared_ptr<DoublyConnectedList::HalfEdge> getHalfEdge();
 		bool isInside(std::shared_ptr<DoublyConnectedList::Vertex> point);
-		bool isOn(std::shared_ptr<DoublyConnectedList::Vertex> point);
+		std::shared_ptr<DoublyConnectedList::HalfEdge> isOn(std::shared_ptr<DoublyConnectedList::Vertex> point);
 		std::shared_ptr<DoublyConnectedList::Vertex> getClosestPoint(std::shared_ptr<DoublyConnectedList::Vertex> vert);
 		void setIfExternal(bool isExt);
 		bool isExternal();
@@ -97,6 +100,7 @@ namespace DoublyConnectedList
 		bool m_IsTheFaceExternal = false;
 		double m_Area;
 		double m_Perimeter;
+		int m_EdgeCount;
 	};
 
 	class DCEL
@@ -114,7 +118,8 @@ namespace DoublyConnectedList
 		std::shared_ptr<DoublyConnectedList::Face> findPoint(std::shared_ptr<DoublyConnectedList::Vertex> point);
 		void addEdge(int vertId1, int vertId2);
 		void deleteEdge(std::shared_ptr<DoublyConnectedList::HalfEdge> edge);
-		void addVertex(double vertId1, double vertId2, std::vector<std::vector<int>> edgeInput);
+		void addVertex(double xCoord, double yCoord, std::vector<std::vector<int>> edgeInput = {});
+		void ExportVTKFormat(std::string filename);
 	private:
 		std::vector<std::shared_ptr<DoublyConnectedList::Vertex>> m_Vertices;
 		std::vector<std::shared_ptr<DoublyConnectedList::HalfEdge>> m_HalfEdges;
@@ -124,5 +129,7 @@ namespace DoublyConnectedList
 		void deleteEdgeFromList(std::shared_ptr<DoublyConnectedList::HalfEdge> edge);
 		void deleteVertexFromList(int ID);
 		void deleteFaceFromList(std::shared_ptr<DoublyConnectedList::Face> face);
+		void addVertexOnTheEdge(std::shared_ptr<DoublyConnectedList::HalfEdge> edge, std::shared_ptr<DoublyConnectedList::Vertex> vertex);
+		void addVertexInsideTheFace(std::shared_ptr<DoublyConnectedList::Face> face, std::shared_ptr<DoublyConnectedList::Vertex> vertex);
 	};
 }
