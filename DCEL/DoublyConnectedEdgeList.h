@@ -27,12 +27,12 @@ namespace DoublyConnectedList
 		Vertex(double x, double y);
 		Vertex(double x, double y, int ID);
 		void setID(int ID);
-		std::vector<std::shared_ptr<DoublyConnectedList::HalfEdge>> getHalfEdge();
+		const std::vector<std::shared_ptr<DoublyConnectedList::HalfEdge>>& getHalfEdge();
 		int getID();
 		void addHalfEdge(std::shared_ptr<DoublyConnectedList::HalfEdge> halfEdge);
 		void angleSortEdges();
 		void prevAndNextAssignments();
-		Coordinates getCoordinate();
+		const Coordinates& getCoordinate();
 	private:
 		int m_ID;
 		// Holds the half edges that this vertex is their origin.
@@ -111,9 +111,9 @@ namespace DoublyConnectedList
 		size_t getNumberOfVertices();
 		size_t getNumberOfHalfEdges();
 		size_t getNumberOfFaces();
-		std::vector<std::shared_ptr<DoublyConnectedList::Vertex>> getVertices();
-		std::vector<std::shared_ptr<DoublyConnectedList::HalfEdge>> getHalfEdges();
-		std::vector<std::shared_ptr<DoublyConnectedList::Face>> getFaces();
+		const std::vector<std::shared_ptr<DoublyConnectedList::Vertex>>& getVertices();
+		const std::vector<std::shared_ptr<DoublyConnectedList::HalfEdge>>& getHalfEdges();
+		const std::vector<std::shared_ptr<DoublyConnectedList::Face>>& getFaces();
 		void updateVertexIds();
 		std::shared_ptr<DoublyConnectedList::Face> findPoint(std::shared_ptr<DoublyConnectedList::Vertex> point);
 		void addEdge(int vertId1, int vertId2);
