@@ -249,14 +249,9 @@ void DoublyConnectedList::DCEL::addEdge(int vertId1, int vertId2)
 	if(!doesNewEdgeCrossAnEdge)
 	{
 		// Create Half-Edges
-		auto hEdge1 = std::make_shared<DoublyConnectedList::HalfEdge>(vertex1, vertex2);
-		auto hEdge2 = std::make_shared<DoublyConnectedList::HalfEdge>(vertex2, vertex1);
-		hEdge1->setTwinHalfEdge(hEdge2);
-		hEdge2->setTwinHalfEdge(hEdge1);
-		vertex1->addHalfEdge(hEdge1);
-		vertex2->addHalfEdge(hEdge2);
-		this->m_HalfEdges.push_back(hEdge1);
-		this->m_HalfEdges.push_back(hEdge2);
+		auto edges = this->createHalfEdge(vertex1, vertex2);
+		auto hEdge1 = edges.first;
+		auto hEdge2 = edges.second;
 
 		// Since the new edge is added re-run the
 		// sort algorithm.
@@ -354,7 +349,7 @@ void DoublyConnectedList::DCEL::deleteEdge(std::shared_ptr<DoublyConnectedList::
 	this->m_Faces.push_back(newFace);
 
 }
-void DoublyConnectedList::DCEL::addVertex(double xCoord, double yCoord, std::vector<std::vector<int>> edgeInput)
+void DoublyConnectedList::DCEL::addVertex(double xCoord, double yCoord, std::vector<int> verticesToConnect)
 {
 	auto newVertex = std::make_shared<DoublyConnectedList::Vertex>(xCoord, yCoord);
 	auto faceThatContainNewVertex = this->findPoint(newVertex);
@@ -367,7 +362,7 @@ void DoublyConnectedList::DCEL::addVertex(double xCoord, double yCoord, std::vec
 		this->addVertexOnTheEdge(halfEdge, newVertex);
 	}
 	else {
-		this->addVertexInsideTheFace(faceThatContainNewVertex, newVertex);
+		this->addVertexInsideTheFace(faceThatContainNewVertex, newVertex, verticesToConnect);
 	}
 }
 void DoublyConnectedList::DCEL::deleteEdgeFromList(std::shared_ptr<DoublyConnectedList::HalfEdge> edge)
@@ -403,19 +398,8 @@ void DoublyConnectedList::DCEL::buildDCEL(std::vector<std::vector<double>> verte
 	
 	// Create Half-Edges
 	for (auto& eInput : edgeInput)
-	{
 		if (eInput[0] >= 0 && eInput[1] >= 0)
-		{
-			auto hEdge1 = std::make_shared<DoublyConnectedList::HalfEdge>(this->m_Vertices[eInput[0]], this->m_Vertices[eInput[1]]);
-			auto hEdge2 = std::make_shared<DoublyConnectedList::HalfEdge>(this->m_Vertices[eInput[1]], this->m_Vertices[eInput[0]]);
-			hEdge1->setTwinHalfEdge(hEdge2);
-			hEdge2->setTwinHalfEdge(hEdge1);
-			this->m_Vertices[eInput[0]]->addHalfEdge(hEdge1);
-			this->m_Vertices[eInput[1]]->addHalfEdge(hEdge2);
-			this->m_HalfEdges.push_back(hEdge1);
-			this->m_HalfEdges.push_back(hEdge2);
-		}
-	}
+			this->createHalfEdge(this->m_Vertices[eInput[0]], this->m_Vertices[eInput[1]]);
 
 	// Half-Edge next and prev assignments
 	for (auto& vertex : this->m_Vertices)
@@ -510,9 +494,51 @@ void DoublyConnectedList::DCEL::addVertexOnTheEdge(std::shared_ptr<DoublyConnect
 	face1->calculateEdgeCount();
 	face2->calculateEdgeCount();
 }
-void DoublyConnectedList::DCEL::addVertexInsideTheFace(std::shared_ptr<DoublyConnectedList::Face> face, std::shared_ptr<DoublyConnectedList::Vertex> vertex)
+void DoublyConnectedList::DCEL::addVertexInsideTheFace(std::shared_ptr<DoublyConnectedList::Face> face, std::shared_ptr<DoublyConnectedList::Vertex> vertex, std::vector<int> verticesToConnect)
 {
-	//TODO
+	if (verticesToConnect.size() < 2)
+		return;
+	// delete the old face that the point is indside.
+	face->clearFaceAssignments();
+	this->deleteFaceFromList(face);
+	for (auto vertexID : verticesToConnect)
+	{
+		// Create Half-Edges
+		this->createHalfEdge(vertex, this->m_Vertices[vertexID]);
+		this->m_Vertices[vertexID]->angleSortEdges();
+		// for the points that has new edge make the prev and next assignments
+		this->m_Vertices[vertexID]->prevAndNextAssignments();
+	}
+	// make the prev and next assignments for the edges around the new added vertex.
+	vertex->prevAndNextAssignments();
+
+	// assign new faces
+	for (auto hEdge : vertex->getHalfEdge())
+	{
+		auto newFace = hEdge->faceAssignmentToEdges(hEdge);
+		newFace->calculateArea();
+		newFace->calculateEdgeCount();
+		this->m_Faces.push_back(newFace);
+	}
+}
+std::pair<std::shared_ptr<DoublyConnectedList::HalfEdge>, std::shared_ptr<DoublyConnectedList::HalfEdge>>
+DoublyConnectedList::DCEL::createHalfEdge(std::shared_ptr<DoublyConnectedList::Vertex> vertex1, std::shared_ptr<DoublyConnectedList::Vertex> vertex2)
+{
+	// Create two twin half-edges between given vertices
+	auto hEdge1 = std::make_shared<DoublyConnectedList::HalfEdge>(vertex1, vertex2);
+	auto hEdge2 = std::make_shared<DoublyConnectedList::HalfEdge>(vertex2, vertex1);
+	// set the twin assignments for this new half-edges
+	hEdge1->setTwinHalfEdge(hEdge2);
+	hEdge2->setTwinHalfEdge(hEdge1);
+	// add this edges inside the half edge list of origin vertices.
+	vertex1->addHalfEdge(hEdge1);
+	vertex2->addHalfEdge(hEdge2);
+	// add this edges inside the halfEdges list of DCEL object.
+	this->m_HalfEdges.push_back(hEdge1);
+	this->m_HalfEdges.push_back(hEdge2);
+
+	// return this new created edges.
+	return { hEdge1 , hEdge2 };
 }
 void DoublyConnectedList::DCEL::ExportVTKFormat(std::string filename)
 {

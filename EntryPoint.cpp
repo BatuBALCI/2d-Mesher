@@ -32,6 +32,11 @@ int main()
 	hEdges = a.getHalfEdges();
 	faces = a.getFaces();
 
+	a.addVertex(0.5, 0.5, {0,1,3,4});
+	vertices = a.getVertices();
+	hEdges = a.getHalfEdges();
+	faces = a.getFaces();
+
 	auto res = a.findPoint(vertex);
 	std::shared_ptr<DoublyConnectedList::Vertex> close;
 	if(res)
