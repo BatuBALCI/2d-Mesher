@@ -18,6 +18,21 @@ namespace MeshData
 			DoublyConnectedList::Vertex::Coordinates coordinates;
 		};
 
+		class Edge
+		{
+		public:
+			Edge() = default;
+			Edge(std::shared_ptr<Corner> start, std::shared_ptr<Corner> end);
+			std::shared_ptr<Corner> getStartCorner();
+			std::shared_ptr<Corner> getEndCorner();
+			double getLength();
+			double calculateLength();
+		private:
+			std::shared_ptr<Corner> startCorner;
+			std::shared_ptr<Corner> endCorner;
+			double length;
+		};
+
 		class PointConstraint
 		{
 		public:
@@ -47,14 +62,12 @@ namespace MeshData
 		{
 		public:
 			EdgeConstraint() = default;
-			EdgeConstraint(std::shared_ptr<Corner> start, std::shared_ptr<Corner> end);
-			std::shared_ptr<Corner> getStartCorner();
-			std::shared_ptr<Corner> getEndCorner();
+			EdgeConstraint(std::shared_ptr<Edge> edge);
+			std::shared_ptr<Edge> getEdge();
 			void addRelativeConstraintLocations(double relativeConstraintLocation);
 			const std::vector<double>& getRelativeConstraintLocations();
 		private:
-			std::shared_ptr<Corner> startCorner;
-			std::shared_ptr<Corner> endCorner;
+			std::shared_ptr<Edge> edge;
 			std::vector<double> relativeConstraintLocations;
 		};
 
