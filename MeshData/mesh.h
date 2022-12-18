@@ -8,6 +8,16 @@ namespace MeshData
 	public:
 		Domain() = default;
 
+		class Corner
+		{
+		public:
+			Corner() = default;
+			Corner(double x, double y);
+			const DoublyConnectedList::Vertex::Coordinates& getCoordinates();
+		private:
+			DoublyConnectedList::Vertex::Coordinates coordinates;
+		};
+
 		class PointConstraint
 		{
 		public:
@@ -33,14 +43,19 @@ namespace MeshData
 			std::vector<std::shared_ptr<PointConstraint>> pointConstraints;
 		};
 
-		class Corner
+		class EdgeConstraint
 		{
 		public:
-			Corner() = default;
-			Corner(double x, double y);
-			const DoublyConnectedList::Vertex::Coordinates& getCoordinates();
+			EdgeConstraint() = default;
+			EdgeConstraint(std::shared_ptr<Corner> start, std::shared_ptr<Corner> end);
+			std::shared_ptr<Corner> getStartCorner();
+			std::shared_ptr<Corner> getEndCorner();
+			void addRelativeConstraintLocations(double relativeConstraintLocation);
+			const std::vector<double>& getRelativeConstraintLocations();
 		private:
-			DoublyConnectedList::Vertex::Coordinates coordinates;
+			std::shared_ptr<Corner> startCorner;
+			std::shared_ptr<Corner> endCorner;
+			std::vector<double> relativeConstraintLocations;
 		};
 
 		void addCorner(std::shared_ptr<Corner> corner);
@@ -50,11 +65,13 @@ namespace MeshData
 		const std::vector<std::shared_ptr<Corner>>& getCorners();
 		const std::vector<std::shared_ptr<PointConstraint>>& getPointConstriants();
 		const std::vector<std::shared_ptr<LineConstraint>>& getLineConstraints();
+		const std::vector<std::shared_ptr<EdgeConstraint>>& getEdgeConstraints();
 		std::shared_ptr<DoublyConnectedList::DCEL> getDCEL();
 	private:
 		std::vector<std::shared_ptr<Corner>> corners;
 		std::vector<std::shared_ptr<PointConstraint>> pointConstraints;
 		std::vector<std::shared_ptr<LineConstraint>> lineConstraints;
+		std::vector<std::shared_ptr<EdgeConstraint>> edgeConstraints;
 		std::shared_ptr<DoublyConnectedList::DCEL> DCEL;
 	};
 }

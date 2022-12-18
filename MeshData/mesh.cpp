@@ -1,4 +1,12 @@
 #include "mesh.h"
+//------------------------------------------------------ Corner -----------------------------------------------------------
+MeshData::Domain::Corner::Corner(double x, double y)
+{
+	this->coordinates.xCoord = x;
+	this->coordinates.yCoord = y;
+}
+const DoublyConnectedList::Vertex::Coordinates& MeshData::Domain::Corner::getCoordinates() { return this->coordinates; }
+
 //------------------------------------------------ Point Constriant -------------------------------------------------------
 MeshData::Domain::PointConstraint::PointConstraint(double x, double y)
 {
@@ -22,13 +30,14 @@ void MeshData::Domain::LineConstraint::addPointConstraint(std::shared_ptr<PointC
 const std::vector<std::shared_ptr<MeshData::Domain::PointConstraint>>& 
 MeshData::Domain::LineConstraint::getConstraints() { return this->pointConstraints; }
 
-//------------------------------------------------------ Corner -----------------------------------------------------------
-MeshData::Domain::Corner::Corner(double x, double y)
-{
-	this->coordinates.xCoord = x;
-	this->coordinates.yCoord = y;
-}
-const DoublyConnectedList::Vertex::Coordinates& MeshData::Domain::Corner::getCoordinates() { return this->coordinates; }
+//------------------------------------------------ Edge Constraint --------------------------------------------------------
+MeshData::Domain::EdgeConstraint::EdgeConstraint(std::shared_ptr<MeshData::Domain::Corner> start, 
+	std::shared_ptr<MeshData::Domain::Corner> end) : startCorner(start), endCorner(end) {}
+std::shared_ptr<MeshData::Domain::Corner> MeshData::Domain::EdgeConstraint::getStartCorner() { return this->startCorner; }
+std::shared_ptr<MeshData::Domain::Corner> MeshData::Domain::EdgeConstraint::getEndCorner() { return this->endCorner; }
+void MeshData::Domain::EdgeConstraint::addRelativeConstraintLocations(double relativeConstraintLocation)
+{ this->relativeConstraintLocations.push_back(relativeConstraintLocation); }
+const std::vector<double>& MeshData::Domain::EdgeConstraint::getRelativeConstraintLocations() { return this->relativeConstraintLocations; }
 
 //------------------------------------------------------ Domain -----------------------------------------------------------
 void MeshData::Domain::addCorner(std::shared_ptr<Corner> corner) { this->corners.push_back(corner); }
@@ -37,4 +46,5 @@ void MeshData::Domain::addLineConstraint(std::shared_ptr<LineConstraint> lineCon
 const std::vector<std::shared_ptr<MeshData::Domain::Corner>>& MeshData::Domain::getCorners() { return this->corners; }
 const std::vector<std::shared_ptr<MeshData::Domain::PointConstraint>>& MeshData::Domain::getPointConstriants() { return this->pointConstraints; }
 const std::vector<std::shared_ptr<MeshData::Domain::LineConstraint>>& MeshData::Domain::getLineConstraints() { return this->lineConstraints; }
+const std::vector<std::shared_ptr<MeshData::Domain::EdgeConstraint>>& MeshData::Domain::getEdgeConstraints() { return this->edgeConstraints; }
 std::shared_ptr<DoublyConnectedList::DCEL> MeshData::Domain::getDCEL() { return DCEL; }
