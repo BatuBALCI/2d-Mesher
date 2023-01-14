@@ -1,4 +1,5 @@
-#include "DoublyConnectedEdgeList.h"
+#include "mesh.h"
+typedef DoublyConnectedList::Vertex::Coordinates coord;
 int main()
 {
 	std::vector<std::vector<double>> verts = { {0.0 ,0.0}, {1.0 ,0.0} , {2.0 ,0.0} , {0.0 ,1.0}, {1.0 ,1.0} , {2.0 ,1.0} , {0.0 ,2.0}, {1.0 ,2.0} , {2.0 ,2.0} };
@@ -41,6 +42,10 @@ int main()
 	vertices = a.getVertices();
 	hEdges = a.getHalfEdges();
 	faces = a.getFaces();
+
+	auto mesh = BasicQuadMesh();
+
+	auto intPoint = mesh.RayIntersection(coord{ 2,1 }, coord{ 1,1 }, coord{ -1,10 }, coord{ 1,-1 });
 
 	auto res = a.findPoint(vertex);
 	std::shared_ptr<DoublyConnectedList::Vertex> close;
