@@ -22,6 +22,11 @@ namespace DoublyConnectedList
 		{
 			double xCoord;
 			double yCoord;
+
+			Coordinates operator+(const Coordinates& cor) const { return { xCoord + cor.xCoord, yCoord + cor.yCoord }; };
+			Coordinates operator*(const double& length) const { return { xCoord * length, yCoord * length }; };
+			Coordinates operator/(const double& length) const { return { xCoord / length, yCoord / length }; };
+			Coordinates operator=(const Coordinates& cor) { this->xCoord = cor.xCoord; this->yCoord = cor.yCoord; return *this; };
 		};
 		Vertex() = default;
 		Vertex(double x, double y);
@@ -126,6 +131,7 @@ namespace DoublyConnectedList
 		std::vector<std::shared_ptr<DoublyConnectedList::Face>> m_Faces;
 
 		void buildDCEL(std::vector<std::vector<double>> vertexInput, std::vector<std::vector<int>> edgeInput);
+		void buildDCEL(std::vector<std::shared_ptr<DoublyConnectedList::Vertex>> vertexInput, std::vector<std::vector<int>> edgeInput);
 		void deleteEdgeFromList(std::shared_ptr<DoublyConnectedList::HalfEdge> edge);
 		void deleteVertexFromList(int ID);
 		void deleteFaceFromList(std::shared_ptr<DoublyConnectedList::Face> face);
