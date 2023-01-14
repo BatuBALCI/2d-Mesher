@@ -99,7 +99,7 @@ bool DoublyConnectedList::HalfEdge::isPointOn(std::shared_ptr<DoublyConnectedLis
 		{ (twinOrgCoor.xCoord - orgCoor.xCoord) ,  (twinOrgCoor.yCoord - orgCoor.yCoord) });
 	auto pointToOriginLength = sqrt(pow((point->getCoordinate().xCoord - this->m_Origin->getCoordinate().xCoord), 2) +
 		pow((point->getCoordinate().yCoord - this->m_Origin->getCoordinate().yCoord), 2));
-	return (abs(area) < 0.001 && pointToOriginLength < this->m_Length);
+	return (abs(area) < 0.000001 && pointToOriginLength < this->m_Length);
 }
 std::shared_ptr<DoublyConnectedList::Face> DoublyConnectedList::HalfEdge::faceAssignmentToEdges(std::shared_ptr<DoublyConnectedList::HalfEdge> itself)
 {
@@ -392,10 +392,45 @@ void DoublyConnectedList::DCEL::deleteFaceFromList(std::shared_ptr<DoublyConnect
 void DoublyConnectedList::DCEL::buildDCEL(std::vector<std::vector<double>> vertexInput, std::vector<std::vector<int>> edgeInput)
 {
 	// Create Vertices
-	int counter = 0;
+	int counter = this->m_Vertices.size();
 	for (auto& vInput : vertexInput)
 		this->m_Vertices.push_back(std::make_shared<DoublyConnectedList::Vertex>(vInput[0], vInput[1], counter++));
 	
+	// Create Half-Edges
+	for (auto& eInput : edgeInput)
+		if (eInput[0] >= 0 && eInput[1] >= 0)
+			this->createHalfEdge(this->m_Vertices[eInput[0]], this->m_Vertices[eInput[1]]);
+
+	// Half-Edge next and prev assignments
+	for (auto& vertex : this->m_Vertices)
+		vertex->prevAndNextAssignments();
+
+	// Create Faces
+	auto dummyList = this->m_HalfEdges;
+	size_t numHalfEdges = dummyList.size();
+	while (numHalfEdges > 0)
+	{
+		auto halfEdge = dummyList.back();
+		dummyList.pop_back();
+		numHalfEdges = dummyList.size();
+		if (halfEdge->getIncidentFace() == nullptr)
+			this->m_Faces.push_back(halfEdge->faceAssignmentToEdges(halfEdge));
+	}
+	for (auto& face : this->m_Faces) {
+		face->setIfExternal(face->calculateArea() < 0);
+		face->calculateEdgeCount();
+	}
+}
+void DoublyConnectedList::DCEL::buildDCEL(std::vector<std::shared_ptr<DoublyConnectedList::Vertex>> vertexInput, std::vector<std::vector<int>> edgeInput)
+{
+	// Create Vertices
+	int counter = this->m_Vertices.size();
+	for (auto& vInput : vertexInput)
+		this->m_Vertices.push_back(vInput);
+	
+	// Update vertex ids
+	this->updateVertexIds();
+
 	// Create Half-Edges
 	for (auto& eInput : edgeInput)
 		if (eInput[0] >= 0 && eInput[1] >= 0)
