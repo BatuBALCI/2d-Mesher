@@ -1,91 +1,32 @@
 #pragma once
-#include "DoublyConnectedEdgeList.h"
+#include "Domain.h"
+#include "cmath"
+#include <boost/math/common_factor_ct.hpp>
+#include <boost/math/common_factor_rt.hpp>
 
-namespace MeshData
+class BasicQuadMesh
 {
-	class Domain
-	{
-	public:
-		Domain() = default;
+public:
+    BasicQuadMesh() = default;
 
-		class Corner
-		{
-		public:
-			Corner() = default;
-			Corner(double x, double y);
-			const DoublyConnectedList::Vertex::Coordinates& getCoordinates();
-		private:
-			DoublyConnectedList::Vertex::Coordinates m_Coordinates;
-		};
+    void Mesh(std::vector<std::shared_ptr<MeshData::Domain>>& domains);
 
-		class Edge
-		{
-		public:
-			Edge() = default;
-			Edge(std::shared_ptr<Corner> start, std::shared_ptr<Corner> end);
-			std::shared_ptr<Corner> getStartCorner();
-			std::shared_ptr<Corner> getEndCorner();
-			double getLength();
-			double calculateLength();
-		private:
-			std::shared_ptr<Corner> m_StartCorner;
-			std::shared_ptr<Corner> m_EndCorner;
-			double m_Length;
-		};
+private:
+    void BuildInitialGrid(std::vector<std::shared_ptr<MeshData::Domain>>& domains);
+    void FindOptimumEdgeLength(const std::vector<std::shared_ptr<MeshData::Domain>>& domains);
+    void AddLineConstraint(std::vector<std::shared_ptr<MeshData::Domain>>& domains);
+    void ReturnToCartesian(std::vector<std::shared_ptr<MeshData::Domain>>& domains);
+    void AddPointConstraintDomains(std::vector<std::shared_ptr<MeshData::Domain>>& domains);
+    void AddPointConstraint(std::shared_ptr<MeshData::Domain> domain, const std::vector<std::shared_ptr<MeshData::Domain::PointConstraint>>& constrains);
+    bool CheckQualityOfMesh(std::vector<std::shared_ptr<MeshData::Domain>>& domains);
+    bool TryMesh(std::vector<std::shared_ptr<MeshData::Domain>>& domains, int tryCount);
 
-		class PointConstraint
-		{
-		public:
-			PointConstraint() = default;
-			PointConstraint(double x, double y);
-			const DoublyConnectedList::Vertex::Coordinates& getCoordinates();
-		private:
-			DoublyConnectedList::Vertex::Coordinates m_Coordinates;
-		};
+    // Some utility function for geometric calculations.
+    DoublyConnectedList::Vertex::Coordinates RayIntersection(const DoublyConnectedList::Vertex::Coordinates& origin1, const DoublyConnectedList::Vertex::Coordinates& direction1,
+        const DoublyConnectedList::Vertex::Coordinates& origin2, const DoublyConnectedList::Vertex::Coordinates& direction2);
+    DoublyConnectedList::Vertex::Coordinates MapFromNeutralCoordinate(double neutralKsi, double neutralEta, const std::vector<std::pair<double, double>>& nodeLocation, std::function<std::vector<double>(double, double)> shapeFunction);
 
-		class LineConstraint
-		{
-		public:
-			LineConstraint() = default;
-			LineConstraint(double startX, double startY, double endX, double endY);
-			const DoublyConnectedList::Vertex::Coordinates& getStartCoordinates();
-			const DoublyConnectedList::Vertex::Coordinates& getEndCoordinates();
-			void addPointConstraint(std::shared_ptr<PointConstraint> pointConstraint);
-			const std::vector<std::shared_ptr<PointConstraint>>& getConstraints();
-		private:
-			DoublyConnectedList::Vertex::Coordinates m_StartCoord;
-			DoublyConnectedList::Vertex::Coordinates m_EndCoord;
-			std::vector<std::shared_ptr<PointConstraint>> m_PointConstraints;
-		};
-
-		class EdgeConstraint
-		{
-		public:
-			EdgeConstraint() = default;
-			EdgeConstraint(std::shared_ptr<Edge> edge);
-			std::shared_ptr<Edge> getEdge();
-			void addRelativeConstraintLocations(double relativeConstraintLocation);
-			const std::vector<double>& getRelativeConstraintLocations();
-		private:
-			std::shared_ptr<Edge> m_Edge;
-			std::vector<double> m_RelativeConstraintLocations;
-		};
-
-		void addCorner(std::shared_ptr<Corner> corner);
-		void addPointConstriant(std::shared_ptr<PointConstraint> pointConstraint);
-		void addLineConstraint(std::shared_ptr<LineConstraint> lineConstraint);
-		void addEdgeConstraint(std::shared_ptr<EdgeConstraint> edgeConstraint);
-
-		const std::vector<std::shared_ptr<Corner>>& getCorners();
-		const std::vector<std::shared_ptr<PointConstraint>>& getPointConstriants();
-		const std::vector<std::shared_ptr<LineConstraint>>& getLineConstraints();
-		const std::vector<std::shared_ptr<EdgeConstraint>>& getEdgeConstraints();
-		std::shared_ptr<DoublyConnectedList::DCEL> getDCEL();
-	private:
-		std::vector<std::shared_ptr<Corner>> m_Corners;
-		std::vector<std::shared_ptr<PointConstraint>> m_PointConstraints;
-		std::vector<std::shared_ptr<LineConstraint>> m_LineConstraints;
-		std::vector<std::shared_ptr<EdgeConstraint>> m_EdgeConstraints;
-		std::shared_ptr<DoublyConnectedList::DCEL> m_DCEL;
-	};
-}
+    // this is the vector that holds numbers that say how many lines that edge 1-3 and 2-4 will going to have on it respectively.; 
+    std::vector<std::pair<int, int>> m_EdgeDivideNum;
+    double m_OptimumLength;
+};
