@@ -52,6 +52,7 @@ const std::vector<double>& MeshData::Domain::EdgeConstraint::getRelativeConstrai
 
 //------------------------------------------------------ Domain -----------------------------------------------------------
 void MeshData::Domain::addCorner(std::shared_ptr<Corner> corner) { this->m_Corners.push_back(corner); }
+void MeshData::Domain::addShapePoint(std::shared_ptr<Corner> corner) { this->m_shapePoints.push_back(corner); }
 void MeshData::Domain::addEdge(std::shared_ptr<Edge> edge) { this->m_Edges.push_back(edge); }
 void MeshData::Domain::addPointConstriant(std::shared_ptr<PointConstraint> pointConstraint) { this->m_PointConstraints.push_back(pointConstraint); }
 void MeshData::Domain::addLineConstraint(std::shared_ptr<LineConstraint> lineConstraint) { this->m_LineConstraints.push_back(lineConstraint); }
@@ -59,6 +60,7 @@ void MeshData::Domain::setEdgeLength(double length) { this->m_EdgeLength = lengt
 void MeshData::Domain::setAspectRaito(double aspectRaito) { this->m_AspectRatio = aspectRaito; }
 void MeshData::Domain::generateDCEL(const std::vector<std::shared_ptr<DoublyConnectedList::Vertex>>& vertexInput, const std::vector<std::vector<int>>& edgeInput) { this->m_DCEL = std::make_shared<DoublyConnectedList::DCEL>(vertexInput, edgeInput); }
 const std::vector<std::shared_ptr<MeshData::Domain::Corner>>& MeshData::Domain::getCorners() const { return this->m_Corners; }
+const std::vector<std::shared_ptr<MeshData::Domain::Corner>>& MeshData::Domain::getShapePoints() const { return this->m_shapePoints; }
 const std::vector<std::shared_ptr<MeshData::Domain::Edge>>& MeshData::Domain::getEdges() const { return this->m_Edges; }
 const std::vector<std::shared_ptr<MeshData::Domain::PointConstraint>>& MeshData::Domain::getPointConstriants() const { return this->m_PointConstraints; }
 const std::vector<std::shared_ptr<MeshData::Domain::LineConstraint>>& MeshData::Domain::getLineConstraints() const { return this->m_LineConstraints; }
