@@ -48,16 +48,20 @@ int main()
 	auto domain = std::make_shared<MeshData::Domain>();
 	auto corner1 = std::make_shared<MeshData::Domain::Corner>(0.0, 0.0, -1.0, -1.0);
 	auto corner2 = std::make_shared<MeshData::Domain::Corner>(10.0, 0.0, 1.0, -1.0);
-	auto corner3 = std::make_shared<MeshData::Domain::Corner>(17.0, .0, 1.0, 1.0);
-	auto corner4 = std::make_shared<MeshData::Domain::Corner>(3.0, 4.0, -1.0, 1.0);
+	auto corner3 = std::make_shared<MeshData::Domain::Corner>(10.0, 10.0, 1.0, 1.0);
+	auto corner4 = std::make_shared<MeshData::Domain::Corner>(0, 10.0, -1.0, 1.0);
 	auto edge1 = std::make_shared<MeshData::Domain::Edge>(corner1, corner2);
 	auto edge2 = std::make_shared<MeshData::Domain::Edge>(corner2, corner3);
 	auto edge3 = std::make_shared<MeshData::Domain::Edge>(corner3, corner4);
 	auto edge4 = std::make_shared<MeshData::Domain::Edge>(corner4, corner1);
 	auto cons1 = std::make_shared<MeshData::Domain::EdgeConstraint>(std::vector<double>{0.2});
-	auto cons2 = std::make_shared<MeshData::Domain::EdgeConstraint>(std::vector<double>{ 0.4, 0.8 });
+	auto cons2 = std::make_shared<MeshData::Domain::EdgeConstraint>(std::vector<double>{ 0.3, 0.8 });
+	auto cons3 = std::make_shared<MeshData::Domain::EdgeConstraint>(std::vector<double>{ 0.05, 0.70 });
+	auto cons4 = std::make_shared<MeshData::Domain::EdgeConstraint>(std::vector<double>{ 0.5 });
 	edge1->addEdgeConstraint(cons1);
 	edge2->addEdgeConstraint(cons2);
+	edge3->addEdgeConstraint(cons3);
+	edge4->addEdgeConstraint(cons4);
 	domain->addCorner(corner1);
 	domain->addCorner(corner2);
 	domain->addCorner(corner3);
@@ -67,13 +71,6 @@ int main()
 	domain->addEdge(edge3);
 	domain->addEdge(edge4);
 	domain->setEdgeLength(0.3);
-	
-	auto lineConstraint = std::make_shared<MeshData::Domain::LineConstraint>();
-	lineConstraint->addPointConstraint(std::make_shared<MeshData::Domain::PointConstraint>(3.42, 3.89));
-	lineConstraint->addPointConstraint(std::make_shared<MeshData::Domain::PointConstraint>(5.62, 1.06));
-	lineConstraint->addPointConstraint(std::make_shared<MeshData::Domain::PointConstraint>(2, 0.26));
-	lineConstraint->addPointConstraint(std::make_shared<MeshData::Domain::PointConstraint>(5, 3.47));
-	domain->addLineConstraint(lineConstraint);
 
 	domains.push_back(domain);
 
