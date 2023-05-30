@@ -182,8 +182,9 @@ void BasicQuadMesh::AddPointConstraint(std::shared_ptr<MeshData::Domain> domain,
 }
 void BasicQuadMesh::AddLineConstraint(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
 	for (auto domain : domains)
-		for (auto& lineConstraint : domain->getLineConstraints())
-			this->AddPointConstraint(domain, lineConstraint->getConstraints());
+		for (auto& lineConstraint : domain->getLineConstraints()) {
+
+		}
 }
 void BasicQuadMesh::ReturnToCartesian(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
 	for (auto domain : domains) {
@@ -212,18 +213,32 @@ void BasicQuadMesh::ReturnToCartesian(std::vector<std::shared_ptr<MeshData::Doma
 void BasicQuadMesh::FindOptimumEdgeLength(const std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
 	this->m_EdgeDivideNum.clear();
 	std::vector<long long> constraintLengthsDomains;
-	for (auto domain : domains){
-		// this vector holds the constreaint distances for EDGE 1 and EDGE 3
-		std::vector<long long> constraintLengths1;
-		// this vector holds the constreaint distances for EDGE 2 and EDGE 4
-		std::vector<long long> constraintLengths2;
+	for (auto domain : domains) {
+		// this vector holds the constreaint distances for EDGE 1
+		std::vector<double> constraintLengths1;
+		// this vector holds the constreaint distances for EDGE 2
+		std::vector<double> constraintLengths2;
+		// this vector holds the constreaint distances for EDGE 3
+		std::vector<double> constraintLengths3;
+		// this vector holds the constreaint distances for EDGE 4
+		std::vector<double> constraintLengths4;
 
-		int edgeID = 1;
+		unsigned short edgeID = 1;
 		auto addConstraintLength = [&](double length) {
-			if (edgeID % 2 != 0)
-				constraintLengths1.push_back(ceil(length * 1e10));
-			else
-				constraintLengths2.push_back(ceil(length * 1e10));
+			switch (edgeID) {
+			case 1:
+				constraintLengths1.push_back(length);
+				break;
+			case 2:
+				constraintLengths2.push_back(length);
+				break;
+			case 3:
+				constraintLengths3.push_back(length);
+				break;
+			case 4:
+				constraintLengths4.push_back(length);
+				break;
+			}
 		};
 
 		for (auto edge : domain->getEdges()) {
@@ -240,31 +255,46 @@ void BasicQuadMesh::FindOptimumEdgeLength(const std::vector<std::shared_ptr<Mesh
 				}
 				addConstraintLength((1.0 - prevLocation) * edgeLength);
 			}
-			else 
+			else
 				addConstraintLength(edgeLength);
 			edgeID++;
 		}
-		// optimum edge length candidate for edge 1-3
-		auto edgeLength1 = boost::integer::gcd_range(constraintLengths1.begin(), constraintLengths1.end()).first;
-		// optimum edge length candidate for edge 2-4
-		auto edgeLength2 = boost::integer::gcd_range(constraintLengths2.begin(), constraintLengths2.end()).first;
-
-		// if the edgeLength input is lower than the found edge length than find new edge length for 
-		if (!(std::round(this->m_OptimumLength * 1e10) > edgeLength1))
-			edgeLength1 = edgeLength1 / (long long)ceil(edgeLength1 / std::round(this->m_OptimumLength * 1e10));
-		if (!(std::round(this->m_OptimumLength * 1e10) > edgeLength2))
-			edgeLength2 = edgeLength2 / (long long)ceil(edgeLength2 / std::round(this->m_OptimumLength * 1e10));
+		// optimum edge length candidate for edge 1
+		auto edgeLength1 = ApproximateGCD(constraintLengths1);
+		// optimum edge length candidate for edge 2
+		auto edgeLength2 = ApproximateGCD(constraintLengths2);
+		// optimum edge length candidate for edge 3
+		auto edgeLength3 = ApproximateGCD(constraintLengths3);
+		// optimum edge length candidate for edge 4
+		auto edgeLength4 = ApproximateGCD(constraintLengths4);
 
 		// find the least common divison numbers for egde1-3.
-		auto divideNum_1_3 = boost::math::lcm(std::llround(domain->getEdges()[0]->getLength() / (edgeLength1 / 1e10)), std::llround(domain->getEdges()[2]->getLength() / (edgeLength1 / 1e10)));
+		auto candidateDivideNumberForEdge13 = std::lround(ApproximateLCM({ domain->getEdges().at(0)->getLength() / edgeLength1, domain->getEdges().at(2)->getLength() / edgeLength3 }));
 		// find the least common divison numbers for egde2-4.
-		auto divideNum_2_4 = boost::math::lcm(std::llround(domain->getEdges()[1]->getLength() / (edgeLength2 / 1e10)), std::llround(domain->getEdges()[3]->getLength() / (edgeLength2 / 1e10)));
-		
-		// TODO check aspect ratio.
-		
+		auto candidateDivideNumberForEdge24 = std::lround(ApproximateLCM({ domain->getEdges().at(1)->getLength() / edgeLength2, domain->getEdges().at(3)->getLength() / edgeLength4 }));
+
+		edgeLength1 = domain->getEdges().at(0)->getLength() / candidateDivideNumberForEdge13;
+		edgeLength2 = domain->getEdges().at(1)->getLength() / candidateDivideNumberForEdge24;
+		edgeLength3 = domain->getEdges().at(2)->getLength() / candidateDivideNumberForEdge13;
+		edgeLength4 = domain->getEdges().at(3)->getLength() / candidateDivideNumberForEdge24;
+
+		if (!(this->m_OptimumLength > edgeLength1))
+			edgeLength1 = edgeLength1 / ceil(edgeLength1 / this->m_OptimumLength);
+		if (!(this->m_OptimumLength > edgeLength2))
+			edgeLength2 = edgeLength2 / ceil(edgeLength2 / this->m_OptimumLength);
+		if (!(this->m_OptimumLength > edgeLength3))
+			edgeLength3 = edgeLength3 / ceil(edgeLength3 / this->m_OptimumLength);
+		if (!(this->m_OptimumLength > edgeLength4))
+			edgeLength4 = edgeLength4 / ceil(edgeLength4 / this->m_OptimumLength);
+
+		double divideNumberForEdge13, divideNumberForEdge24;
+
+		divideNumberForEdge13 = domain->getEdges().at(0)->getLength() / edgeLength1 < domain->getEdges().at(2)->getLength() / edgeLength3 ? domain->getEdges().at(0)->getLength() / edgeLength1 : domain->getEdges().at(2)->getLength() / edgeLength3;
+		divideNumberForEdge24 = domain->getEdges().at(1)->getLength() / edgeLength2 < domain->getEdges().at(3)->getLength() / edgeLength4 ? domain->getEdges().at(1)->getLength() / edgeLength2 : domain->getEdges().at(3)->getLength() / edgeLength4;
+
 		// TODO if there are more than one domain than change this part to have compatible divide numbers at the intersection edges.
 		// add the divide numbers to the vector.
-		this->m_EdgeDivideNum.push_back({ divideNum_1_3 , divideNum_2_4 });
+		this->m_EdgeDivideNum.push_back({ divideNumberForEdge13 , divideNumberForEdge24 });
 	}
 }
 bool BasicQuadMesh::CheckQualityOfMesh(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
@@ -304,3 +334,40 @@ DoublyConnectedList::Vertex::Coordinates BasicQuadMesh::MapFromNeutralCoordinate
 	return result;
 }
 
+double BasicQuadMesh::ApproximateGCD(const std::vector<double>& nums){
+
+	auto meanSin = [&nums](double period) {
+		double sum = 0.0;
+		for (auto num : nums)
+			sum += sin(2.0 * pi * num / period) / nums.size();
+		return sum;
+	};
+
+	auto meanCos = [&nums](double period) {
+		double sum = 0.0;
+		for (auto num : nums)
+			sum += cos(2.0 * pi * num / period) / nums.size();
+		return sum;
+	};
+
+	auto gcdAppeal = [&meanCos, &meanSin](double period) {
+		return (1.0 - 0.5 * sqrt(pow(meanSin(period), 2) + pow(meanCos(period) - 1, 2)));
+	};
+
+	double iterator = *std::min_element(nums.begin(), nums.end());
+
+	while (iterator >= 0) {
+		if (gcdAppeal(iterator) > 0.99)
+			break;
+		iterator -= 0.000001;
+	}
+
+	return iterator;
+}
+
+double BasicQuadMesh::ApproximateLCM(const std::vector<double>& nums) {
+	double multiply = 1.0;
+	for (auto num : nums)
+		multiply *= num;
+	return multiply / ApproximateGCD(nums);
+}

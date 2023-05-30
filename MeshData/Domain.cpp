@@ -43,10 +43,6 @@ MeshData::Domain::LineConstraint::LineConstraint(double startX, double startY, d
 }
 const DoublyConnectedList::Vertex::Coordinates& MeshData::Domain::LineConstraint::getStartCoordinates() const { return this->m_StartCoord; }
 const DoublyConnectedList::Vertex::Coordinates& MeshData::Domain::LineConstraint::getEndCoordinates() const { return this->m_EndCoord; }
-void MeshData::Domain::LineConstraint::addPointConstraint(std::shared_ptr<PointConstraint> pointConstraint) 
-{ this->m_PointConstraints.push_back(pointConstraint); }
-const std::vector<std::shared_ptr<MeshData::Domain::PointConstraint>>& 
-MeshData::Domain::LineConstraint::getConstraints() const { return this->m_PointConstraints; }
 
 //------------------------------------------------ Edge Constraint --------------------------------------------------------
 MeshData::Domain::EdgeConstraint::EdgeConstraint(const std::vector<double>& realtiveLocations) : m_RelativeConstraintLocations(realtiveLocations) {}
