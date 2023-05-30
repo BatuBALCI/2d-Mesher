@@ -58,12 +58,9 @@ namespace MeshData
 			LineConstraint(double startX, double startY, double endX, double endY);
 			const DoublyConnectedList::Vertex::Coordinates& getStartCoordinates() const;
 			const DoublyConnectedList::Vertex::Coordinates& getEndCoordinates() const;
-			void addPointConstraint(std::shared_ptr<PointConstraint> pointConstraint);
-			const std::vector<std::shared_ptr<PointConstraint>>& getConstraints() const;
 		private:
 			DoublyConnectedList::Vertex::Coordinates m_StartCoord;
 			DoublyConnectedList::Vertex::Coordinates m_EndCoord;
-			std::vector<std::shared_ptr<PointConstraint>> m_PointConstraints;
 		};
 
 		class EdgeConstraint

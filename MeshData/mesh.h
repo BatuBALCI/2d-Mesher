@@ -25,6 +25,9 @@ private:
     DoublyConnectedList::Vertex::Coordinates RayIntersection(const DoublyConnectedList::Vertex::Coordinates& origin1, const DoublyConnectedList::Vertex::Coordinates& direction1,
         const DoublyConnectedList::Vertex::Coordinates& origin2, const DoublyConnectedList::Vertex::Coordinates& direction2);
     DoublyConnectedList::Vertex::Coordinates MapFromNeutralCoordinate(double neutralKsi, double neutralEta, const std::vector<std::pair<double, double>>& nodeLocation, std::function<std::vector<double>(double, double)> shapeFunction);
+    double ApproximateGCD(const std::vector<double>& nums);
+    double ApproximateLCM(const std::vector<double>& nums);
+
 
     // this is the vector that holds numbers that say how many lines that edge 1-3 and 2-4 will going to have on it respectively.; 
     std::vector<std::pair<int, int>> m_EdgeDivideNum;
