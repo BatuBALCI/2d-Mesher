@@ -189,24 +189,24 @@ void BasicQuadMesh::AddLineConstraint(std::vector<std::shared_ptr<MeshData::Doma
 void BasicQuadMesh::ReturnToCartesian(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
 	for (auto domain : domains) {
 		std::vector<std::pair<double, double>> nodes;
-		for (auto corner : domain->getCorners())
+		for (auto corner : domain->getShapePoints())
 			nodes.push_back({ corner->getCoordinates().xCoord, corner->getCoordinates().yCoord });
 		for (auto vertex : domain->getDCEL()->getVertices())
 			vertex->setCoordinate(MapFromNeutralCoordinate(vertex->getCoordinate().xCoord, vertex->getCoordinate().yCoord,
 				nodes, [&](double x, double y)
 				{return std::vector<double>({
-					0.25 * (1 - x) * (1 - y),
-					-0.25 * (-1 - x) * (1 - y),
-					0.25 * (-1 - x) * (-1 - y),
-					-0.25 * (1 - x) * (-1 - y) }); }));
+					-0.25 * (1 - x) * (1 - y) * (1 + x + y),
+					0.5 * (1 - x) * (1 + x) * (1 - y),
+					-0.25 * (1 + x) * (1 - y) * (1 - x + y),
+					0.5 * (1 + x) * (1 + y) * (1 - y),
+					-0.25 * (1 + x) * (1 + y) * (1 - x - y),
+					0.5 * (1 - x) * (1 + x) * (1 + y),
+					-0.25 * (1 - x) * (1 + y) * (1 + x - y),
+					0.5 * (1 - x) * (1 + y) * (1 - y) }); }));
 
-		// update half-edge propertiess
-		for (auto halfEdge : domain->getDCEL()->getHalfEdges())
-			halfEdge->updateProperties();
 		// update face propertiess
 		for (auto face : domain->getDCEL()->getFaces()) {
-			face->calculateArea();
-			face->calculatePerimeter();
+			face->updateProperties();
 		}
 	}
 }
