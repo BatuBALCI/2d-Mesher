@@ -15,11 +15,13 @@ namespace MeshData
 			Corner() = default;
 			Corner(double x, double y, double ksi, double eta);
 			std::shared_ptr<DoublyConnectedList::Vertex> getCornerVertex() const;
+			const std::pair<double, double>& getCornerInfo() const;
 			const DoublyConnectedList::Vertex::Coordinates& getCoordinates() const;
 			bool operator==(const Corner& edge) const { return (this->m_CornerVertex == edge.getCornerVertex() && this->m_CornerVertex == edge.getCornerVertex()); }
 		private:
 			DoublyConnectedList::Vertex::Coordinates m_Coordinates;
 			std::shared_ptr<DoublyConnectedList::Vertex> m_CornerVertex = nullptr;
+			std::pair<double, double> m_CornerInfo;
 		};
 
 		class Edge
@@ -91,6 +93,7 @@ namespace MeshData
 		std::shared_ptr<DoublyConnectedList::DCEL> getDCEL();
 		double getEdgeLength() const;
 		double getAspectRaito() const;
+		void reset();
 	private:
 		double m_EdgeLength = 1.0;
 		double m_AspectRatio = 0.5;

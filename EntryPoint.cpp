@@ -33,7 +33,7 @@ int main()
 	hEdges = a.getHalfEdges();
 	faces = a.getFaces();
 
-	a.addVertex(0.5, 0.5, {0,1,3,4});
+	a.addVertex(0.5, 0.5, { 0,1,3,4 });
 	vertices = a.getVertices();
 	hEdges = a.getHalfEdges();
 	faces = a.getFaces();
@@ -66,6 +66,14 @@ int main()
 	domain->addCorner(corner2);
 	domain->addCorner(corner3);
 	domain->addCorner(corner4);
+	domain->addShapePoint(std::make_shared<MeshData::Domain::Corner>(0.0, 0.0, -1.0, -1.0));
+	domain->addShapePoint(std::make_shared<MeshData::Domain::Corner>(5.0, 2.0, 0.0, -1.0));
+	domain->addShapePoint(std::make_shared<MeshData::Domain::Corner>(10.0, 0.0, 1.0, -1.0));
+	domain->addShapePoint(std::make_shared<MeshData::Domain::Corner>(10.0, 5.0, 1.0, 0.0));
+	domain->addShapePoint(std::make_shared<MeshData::Domain::Corner>(10.0, 10.0, 1.0, 1.0));
+	domain->addShapePoint(std::make_shared<MeshData::Domain::Corner>(5.0, 12.0, 0.0, 1.0));
+	domain->addShapePoint(std::make_shared<MeshData::Domain::Corner>(0.0, 10.0, -1.0, 1.0));
+	domain->addShapePoint(std::make_shared<MeshData::Domain::Corner>(0.0, 5.0, -1.0, 0.0));
 	domain->addEdge(edge1);
 	domain->addEdge(edge2);
 	domain->addEdge(edge3);

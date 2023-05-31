@@ -1,12 +1,15 @@
 #include "Mesh.h"
 
 void BasicQuadMesh::Mesh(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
-	for (int i = 0; i < 5; i++)
-		if (this->TryMesh(domains, i))
+	for (int i = 0; i < 5; i++) {
+		if (this->TryMesh(domains, i)) {
+			domains.at(0)->getDCEL()->ExportVTKFormat("try.vtk");
 			break;
-	domains.at(0)->getDCEL()->ExportVTKFormat("try.vtk");
+		}
+	}
 }
 bool BasicQuadMesh::TryMesh(std::vector<std::shared_ptr<MeshData::Domain>>& domains, int tryCount) {
+	this->ClearDomain(domains);
 	if (tryCount == 0) {
 		auto comp = [](std::shared_ptr<MeshData::Domain> a, std::shared_ptr<MeshData::Domain> b) {
 			return (a->getEdgeLength() < b->getEdgeLength());
@@ -20,9 +23,10 @@ bool BasicQuadMesh::TryMesh(std::vector<std::shared_ptr<MeshData::Domain>>& doma
 	}
 
 	this->BuildInitialGrid(domains);
-	this->ReturnToCartesian(domains);
-	this->AddPointConstraintDomains(domains);
-	this->AddLineConstraint(domains);
+	if (!this->AddPointConstraints(domains))
+		return false;
+	if (!this->AddLineConstraint(domains))
+		return false;
 
 	return this->CheckQualityOfMesh(domains);
 }
@@ -67,6 +71,7 @@ void BasicQuadMesh::BuildInitialGrid(std::vector<std::shared_ptr<MeshData::Domai
 					auto coordinate = startCorner->getCornerVertex()->getCoordinate() + direction * (((double)k * 2.0)/ (double)edgeDivideNum);
 					vertex = std::make_shared<DoublyConnectedList::Vertex>(coordinate.xCoord, coordinate.yCoord);
 				}
+				vertex->setConstraint(DoublyConnectedList::Vertex::Constraints::EDGE);
 				switch (j) {
 				case 0:
 					edge1Vertices.push_back(vertex);
@@ -156,58 +161,136 @@ void BasicQuadMesh::BuildInitialGrid(std::vector<std::shared_ptr<MeshData::Domai
 			lastColumnDummy.clear();
 		}
 		domain->generateDCEL(vertexInput, edgeInput);
-	}
-}
-void BasicQuadMesh::AddPointConstraintDomains(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
-	for (auto domain : domains)
-		this->AddPointConstraint(domain, domain->getPointConstriants());
-}
-void BasicQuadMesh::AddPointConstraint(std::shared_ptr<MeshData::Domain> domain, const std::vector<std::shared_ptr<MeshData::Domain::PointConstraint>>& constrains) {
-	auto DCEL = domain->getDCEL();
-	for (auto constraint : constrains) {
-		// generate new vertex for onstraint.
-		auto vertex = std::make_shared<DoublyConnectedList::Vertex>(constraint->getCoordinates().xCoord, constraint->getCoordinates().yCoord);
-		auto face = DCEL->findPoint(vertex);
-		auto closestVertex = face->getClosestPoint(vertex);
-		std::shared_ptr<DoublyConnectedList::HalfEdge> halfEdge;
-		for (auto hEdge : closestVertex->getHalfEdge()) {
-			if (face == hEdge->getIncidentFace()) {
-				halfEdge = hEdge;
-				break;
-			}
-		}
-		auto nextVertex = halfEdge->getTwinHalfEdge()->getOrigin();
-		DCEL->addVertex(vertex, { closestVertex->getID(), nextVertex->getID() });
-	}
-}
-void BasicQuadMesh::AddLineConstraint(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
-	for (auto domain : domains)
-		for (auto& lineConstraint : domain->getLineConstraints()) {
+		this->ReturnToCartesian(domain);
+		
+		domains.at(0)->getDCEL()->ExportVTKFormat("try.vtk");
 
-		}
-}
-void BasicQuadMesh::ReturnToCartesian(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
-	for (auto domain : domains) {
-		std::vector<std::pair<double, double>> nodes;
-		for (auto corner : domain->getShapePoints())
-			nodes.push_back({ corner->getCoordinates().xCoord, corner->getCoordinates().yCoord });
-		for (auto vertex : domain->getDCEL()->getVertices())
-			vertex->setCoordinate(MapFromNeutralCoordinate(vertex->getCoordinate().xCoord, vertex->getCoordinate().yCoord,
-				nodes, [&](double x, double y)
-				{return std::vector<double>({
-					-0.25 * (1 - x) * (1 - y) * (1 + x + y),
-					0.5 * (1 - x) * (1 + x) * (1 - y),
-					-0.25 * (1 + x) * (1 - y) * (1 - x + y),
-					0.5 * (1 + x) * (1 + y) * (1 - y),
-					-0.25 * (1 + x) * (1 + y) * (1 - x - y),
-					0.5 * (1 - x) * (1 + x) * (1 + y),
-					-0.25 * (1 - x) * (1 + y) * (1 + x - y),
-					0.5 * (1 - x) * (1 + y) * (1 - y) }); }));
-
-		// update face propertiess
+		// Divide the generated quads into triangles.
+		// The division takes place from the largest interior angle of the quad.
+		std::vector<std::pair<int, int>> newEdges;
 		for (auto face : domain->getDCEL()->getFaces()) {
-			face->updateProperties();
+			if (face->isExternal())
+				continue;
+			std::shared_ptr<DoublyConnectedList::HalfEdge> halfEdgeWithBiggestAngleOrigin;
+			double biggestAngle = 0.0;
+			auto halfEdge = face->getHalfEdge();
+			do
+			{
+				auto angle1 = halfEdge->getAngle();
+				auto prevHalfEdge = halfEdge->getPrevHalfEdge();
+				auto angle2 = prevHalfEdge->getAngle();
+				auto angle = pi - angle1 + angle2;
+				while (angle > 2 * pi)
+					angle -= 2 * pi;
+				if (angle > biggestAngle) {
+					biggestAngle = angle;
+					halfEdgeWithBiggestAngleOrigin = halfEdge;
+				}
+				halfEdge = halfEdge->getNextHalfEdge();
+			} while (halfEdge != face->getHalfEdge());
+			newEdges.push_back({ halfEdgeWithBiggestAngleOrigin->getOrigin()->getID(), halfEdgeWithBiggestAngleOrigin->getNextHalfEdge()->getNextHalfEdge()->getOrigin()->getID() });
 		}
+		for (auto edge : newEdges)
+			domain->getDCEL()->addEdge(edge.first, edge.second);
+	}
+}
+bool BasicQuadMesh::AddPointConstraints(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
+	for (auto domain : domains) {
+		for (auto constraint : domain->getPointConstriants()) {
+			// Add this constraint.
+			if (!AddConstraint(domain, constraint->getCoordinates(), DoublyConnectedList::Vertex::Constraints::POINT))
+				return false;
+		}
+	}
+	return true;
+}
+bool BasicQuadMesh::AddConstraint(std::shared_ptr<MeshData::Domain> domain, const DoublyConnectedList::Vertex::Coordinates& constrainCoordinate, DoublyConnectedList::Vertex::Constraints type) {
+	// Get the generated DCEL
+	auto DCEL = domain->getDCEL();
+	// Find the face that contains the constraint location.
+	auto face = DCEL->findPoint(constrainCoordinate);
+	// If the face couldn't be found return false
+	if (!face)
+		return false;
+	// Find the closest vertex to constriant.
+	auto closestVertex = face->getClosestPoint(constrainCoordinate);
+	// If that vertex is already a constraint return false.
+	if (closestVertex->constriantType() == DoublyConnectedList::Vertex::Constraints::POINT || closestVertex->constriantType() == DoublyConnectedList::Vertex::Constraints::EDGE ||
+		(closestVertex->constriantType() == DoublyConnectedList::Vertex::Constraints::LINE && type == DoublyConnectedList::Vertex::Constraints::POINT))
+		return false;
+	// Set the constraint type.
+	closestVertex->setConstraint(type);
+	// Set the new coordinates.
+	closestVertex->setCoordinate(constrainCoordinate);
+	return true;
+}
+bool BasicQuadMesh::AddLineConstraint(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
+	for (auto domain : domains) {
+		auto DCEL = domain->getDCEL();
+		for (auto& lineConstraint : domain->getLineConstraints()) {
+			auto startFace = DCEL->findPoint(lineConstraint->getStartCoordinates());
+			auto endFace = DCEL->findPoint(lineConstraint->getEndCoordinates());
+			auto endVertex = std::make_shared<DoublyConnectedList::Vertex>(lineConstraint->getEndCoordinates().xCoord, lineConstraint->getEndCoordinates().yCoord);
+			if (startFace == endFace)
+				return false;
+			if (!AddConstraint(domain, lineConstraint->getStartCoordinates(), DoublyConnectedList::Vertex::Constraints::LINE))
+				return false;
+			
+			auto iterVert = DCEL->findPoint(lineConstraint->getStartCoordinates())->getClosestPoint(lineConstraint->getStartCoordinates());
+			while (true) {
+				auto lineDirection = lineConstraint->getEndCoordinates() - iterVert->getCoordinate();
+				auto lineDummyHalfEdge = DoublyConnectedList::HalfEdge(iterVert, endVertex);
+				std::shared_ptr<DoublyConnectedList::HalfEdge> halfEdge;
+				for (auto hEdge : iterVert->getHalfEdge()) {
+					halfEdge = hEdge;
+					if (hEdge->getAngle() <= lineDummyHalfEdge.getAngle())
+						break;
+				}
+				endFace = DCEL->findPoint(lineConstraint->getEndCoordinates());
+				if (halfEdge->getIncidentFace() == endFace)
+					break;
+
+				auto frontEdgeDirection = halfEdge->getPrevHalfEdge()->getOrigin()->getCoordinate() - halfEdge->getNextHalfEdge()->getOrigin()->getCoordinate();
+				auto intersecton = RayIntersection(halfEdge->getNextHalfEdge()->getOrigin()->getCoordinate(), frontEdgeDirection, iterVert->getCoordinate(), lineDirection);
+
+				auto dist1 = sqrt((halfEdge->getPrevHalfEdge()->getOrigin()->getCoordinate() - intersecton) * (halfEdge->getPrevHalfEdge()->getOrigin()->getCoordinate() - intersecton));
+				auto dist2 = sqrt((halfEdge->getNextHalfEdge()->getOrigin()->getCoordinate() - intersecton) * (halfEdge->getNextHalfEdge()->getOrigin()->getCoordinate() - intersecton));
+
+				if (dist1 < dist2) {
+					halfEdge->getPrevHalfEdge()->getOrigin()->setCoordinate(intersecton);
+					iterVert = halfEdge->getPrevHalfEdge()->getOrigin();
+				}
+				else {
+					halfEdge->getNextHalfEdge()->getOrigin()->setCoordinate(intersecton);
+					iterVert = halfEdge->getNextHalfEdge()->getOrigin();
+				}
+			}
+			if (!AddConstraint(domain, lineConstraint->getEndCoordinates(), DoublyConnectedList::Vertex::Constraints::LINE))
+				return false;
+		}
+	}
+	return true;
+}
+void BasicQuadMesh::ReturnToCartesian(std::shared_ptr<MeshData::Domain> domain) {
+	std::vector<std::pair<double, double>> nodes;
+	for (auto corner : domain->getShapePoints())
+		nodes.push_back({ corner->getCoordinates().xCoord, corner->getCoordinates().yCoord });
+	for (auto vertex : domain->getDCEL()->getVertices())
+		vertex->setCoordinate(MapFromNeutralCoordinate(vertex->getCoordinate().xCoord, vertex->getCoordinate().yCoord,
+			nodes, [&](double x, double y)
+			{return std::vector<double>({
+				-0.25 * (1 - x) * (1 - y) * (1 + x + y),
+				0.5 * (1 - x) * (1 + x) * (1 - y),
+				-0.25 * (1 + x) * (1 - y) * (1 - x + y),
+				0.5 * (1 + x) * (1 + y) * (1 - y),
+				-0.25 * (1 + x) * (1 + y) * (1 - x - y),
+				0.5 * (1 - x) * (1 + x) * (1 + y),
+				-0.25 * (1 - x) * (1 + y) * (1 + x - y),
+				0.5 * (1 - x) * (1 + y) * (1 - y) }); }));
+
+	// update face propertiess
+	for (auto face : domain->getDCEL()->getFaces()) {
+		face->updateProperties();
 	}
 }
 void BasicQuadMesh::FindOptimumEdgeLength(const std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
@@ -304,18 +387,24 @@ bool BasicQuadMesh::CheckQualityOfMesh(std::vector<std::shared_ptr<MeshData::Dom
 	return true;
 }
 
-DoublyConnectedList::Vertex::Coordinates BasicQuadMesh::RayIntersection(const DoublyConnectedList::Vertex::Coordinates& origin1, const DoublyConnectedList::Vertex::Coordinates& direction1,
-	const DoublyConnectedList::Vertex::Coordinates& origin2, const DoublyConnectedList::Vertex::Coordinates& direction2) {
+void BasicQuadMesh::ClearDomain(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
+	for (auto domain : domains) {
+		domain->reset();
+	}
+}
+
+DoublyConnectedList::Vertex::Coordinates BasicQuadMesh::RayIntersection(const DoublyConnectedList::Vertex::Coordinates& origin1, DoublyConnectedList::Vertex::Coordinates& direction1,
+	const DoublyConnectedList::Vertex::Coordinates& origin2, DoublyConnectedList::Vertex::Coordinates& direction2) {
 	// normalize the direction vectors
-	auto dir1 = direction1 / (sqrt(direction1.xCoord * direction1.xCoord + direction1.yCoord * direction1.yCoord));
-	auto dir2 = direction2 / (sqrt(direction2.xCoord * direction2.xCoord + direction2.yCoord * direction2.yCoord));
+	auto dir1 = direction1.normalize();
+	auto dir2 = direction2.normalize();
 	// Caulculate the distance between the intersection point and the origin 2 by solving the intersection
 	// equation between 2 rays.
 	double distanceBetweenTheIntersectionAndOrigin2;
 	if (abs(dir1.xCoord) < 10e-15)
 		distanceBetweenTheIntersectionAndOrigin2 = (origin1.xCoord - origin2.xCoord) / dir2.xCoord;
 	else
-		auto distanceBetweenTheIntersectionAndOrigin2 = (origin1.yCoord + dir1.yCoord * (origin2.xCoord - origin1.xCoord) / dir1.xCoord - origin2.yCoord) /
+		distanceBetweenTheIntersectionAndOrigin2 = (origin1.yCoord + dir1.yCoord * (origin2.xCoord - origin1.xCoord) / dir1.xCoord - origin2.yCoord) /
 		(dir2.yCoord - dir2.xCoord * dir1.yCoord / dir1.xCoord);
 
 	auto result = origin2 + dir2 * distanceBetweenTheIntersectionAndOrigin2;
