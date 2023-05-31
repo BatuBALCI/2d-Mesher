@@ -6,8 +6,10 @@ MeshData::Domain::Corner::Corner(double x, double y, double ksi, double eta)
 	this->m_Coordinates.yCoord = y;
 
 	this->m_CornerVertex = std::make_shared<DoublyConnectedList::Vertex>(ksi, eta);
+	this->m_CornerInfo = { ksi, eta };
 }
 std::shared_ptr<DoublyConnectedList::Vertex> MeshData::Domain::Corner::getCornerVertex() const { return this->m_CornerVertex; }
+const std::pair<double, double>& MeshData::Domain::Corner::getCornerInfo() const { return this->m_CornerInfo; }
 const DoublyConnectedList::Vertex::Coordinates& MeshData::Domain::Corner::getCoordinates() const { return this->m_Coordinates; }
 
 
@@ -67,3 +69,15 @@ const std::vector<std::shared_ptr<MeshData::Domain::LineConstraint>>& MeshData::
 std::shared_ptr<DoublyConnectedList::DCEL> MeshData::Domain::getDCEL() { return m_DCEL; }
 double MeshData::Domain::getEdgeLength() const { return this->m_EdgeLength; }
 double MeshData::Domain::getAspectRaito() const { return this->m_AspectRatio; }
+void MeshData::Domain::reset()
+{
+	if (this->m_DCEL) this->m_DCEL.reset();
+	for (auto& corner : m_Corners) {
+		auto vertex = corner->getCornerVertex();
+		vertex->setCoordinate({ corner->getCornerInfo().first, corner->getCornerInfo().second });
+		vertex->setID(-1);
+		vertex->clearConstraint();
+		vertex->clearHalfEdge();
+	}
+};
+
