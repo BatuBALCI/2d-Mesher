@@ -56,7 +56,7 @@ int main()
 	auto edge4 = std::make_shared<MeshData::Domain::Edge>(corner4, corner1);
 	auto cons1 = std::make_shared<MeshData::Domain::EdgeConstraint>(std::vector<double>{0.2});
 	auto cons2 = std::make_shared<MeshData::Domain::EdgeConstraint>(std::vector<double>{ 0.3, 0.8 });
-	auto cons3 = std::make_shared<MeshData::Domain::EdgeConstraint>(std::vector<double>{ 0.05, 0.70 });
+	auto cons3 = std::make_shared<MeshData::Domain::EdgeConstraint>(std::vector<double>{ 0.3, 0.70 });
 	auto cons4 = std::make_shared<MeshData::Domain::EdgeConstraint>(std::vector<double>{ 0.5 });
 	edge1->addEdgeConstraint(cons1);
 	edge2->addEdgeConstraint(cons2);
@@ -78,16 +78,18 @@ int main()
 	domain->addEdge(edge2);
 	domain->addEdge(edge3);
 	domain->addEdge(edge4);
-	domain->setEdgeLength(0.3);
+	domain->addPointConstriant(std::make_shared<MeshData::Domain::PointConstraint>(4.65, 6.78));
+	domain->addLineConstraint(std::make_shared<MeshData::Domain::LineConstraint>(0.3, 8.5, 7.65, 9.78));
+	domain->setEdgeLength(1.0);
 
 	domains.push_back(domain);
 
 	auto mesh = BasicQuadMesh();
 
 	mesh.Mesh(domains);
-	auto res = a.findPoint(vertex);
+	auto res = a.findPoint(vertex->getCoordinate());
 	std::shared_ptr<DoublyConnectedList::Vertex> close;
 	if(res)
-		close = res->getClosestPoint(vertex);
+		close = res->getClosestPoint(vertex->getCoordinate());
 	a.ExportVTKFormat("asd.vtk");
 }
