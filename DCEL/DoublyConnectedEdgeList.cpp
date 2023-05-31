@@ -13,7 +13,11 @@ DoublyConnectedList::Vertex::Vertex(double x, double y, int ID)
 	this->m_ID = ID;
 }
 void DoublyConnectedList::Vertex::setID(int ID) { this->m_ID = ID; }
+void DoublyConnectedList::Vertex::setConstraint(Constraints cons) { this->m_ConstraintType = cons; }
+void DoublyConnectedList::Vertex::clearConstraint() { this->m_ConstraintType = Constraints::NONE; }
+DoublyConnectedList::Vertex::Constraints DoublyConnectedList::Vertex::constriantType() { return m_ConstraintType; }
 const std::vector<std::shared_ptr<DoublyConnectedList::HalfEdge>>& DoublyConnectedList::Vertex::getHalfEdge() const { return this->m_HalfEdges; }
+void DoublyConnectedList::Vertex::clearHalfEdge() { this->m_HalfEdges.clear(); }
 int DoublyConnectedList::Vertex::getID() const { return this->m_ID; }
 void DoublyConnectedList::Vertex::addHalfEdge(std::shared_ptr<DoublyConnectedList::HalfEdge> halfEdge) { this->m_HalfEdges.push_back(halfEdge); };
 void DoublyConnectedList::Vertex::angleSortEdges()
@@ -92,22 +96,22 @@ void DoublyConnectedList::HalfEdge::updateProperties() {
 	this->calculateProperties(origin, twinOrigin);
 }
 double DoublyConnectedList::HalfEdge::determinant(const std::vector<double>& point1, const std::vector<double>& point2){ return (point1[0]) * (point2[1]) - (point1[1]) * (point2[0]); }
-bool DoublyConnectedList::HalfEdge::isPointOnLeft(std::shared_ptr<DoublyConnectedList::Vertex> point)
+bool DoublyConnectedList::HalfEdge::isPointOnLeft(const DoublyConnectedList::Vertex::Coordinates& pointCoordinates)
 {
 	auto twinOrgCoor = this->m_Twin->getOrigin()->getCoordinate();
 	auto orgCoor = this->m_Origin->getCoordinate();
-	auto area = determinant({ (point->getCoordinate().xCoord - orgCoor.xCoord) ,(point->getCoordinate().yCoord - orgCoor.yCoord) },
+	auto area = determinant({ (pointCoordinates.xCoord - orgCoor.xCoord) ,(pointCoordinates.yCoord - orgCoor.yCoord) },
 		{ (twinOrgCoor.xCoord - orgCoor.xCoord) ,  (twinOrgCoor.yCoord - orgCoor.yCoord) });
 	return area < 0.0;
 }
-bool DoublyConnectedList::HalfEdge::isPointOn(std::shared_ptr<DoublyConnectedList::Vertex> point)
+bool DoublyConnectedList::HalfEdge::isPointOn(const DoublyConnectedList::Vertex::Coordinates& pointCoordinates)
 {
 	auto twinOrgCoor = this->m_Twin->getOrigin()->getCoordinate();
 	auto orgCoor = this->m_Origin->getCoordinate();
-	auto area = determinant({ (point->getCoordinate().xCoord - orgCoor.xCoord) ,(point->getCoordinate().yCoord - orgCoor.yCoord) },
+	auto area = determinant({ (pointCoordinates.xCoord - orgCoor.xCoord) ,(pointCoordinates.yCoord - orgCoor.yCoord) },
 		{ (twinOrgCoor.xCoord - orgCoor.xCoord) ,  (twinOrgCoor.yCoord - orgCoor.yCoord) });
-	auto pointToOriginLength = sqrt(pow((point->getCoordinate().xCoord - this->m_Origin->getCoordinate().xCoord), 2) +
-		pow((point->getCoordinate().yCoord - this->m_Origin->getCoordinate().yCoord), 2));
+	auto pointToOriginLength = sqrt(pow((pointCoordinates.xCoord - this->m_Origin->getCoordinate().xCoord), 2) +
+		pow((pointCoordinates.yCoord - this->m_Origin->getCoordinate().yCoord), 2));
 	return (abs(area) < 0.000001 && pointToOriginLength < this->m_Length);
 }
 std::shared_ptr<DoublyConnectedList::Face> DoublyConnectedList::HalfEdge::faceAssignmentToEdges(std::shared_ptr<DoublyConnectedList::HalfEdge> itself)
@@ -159,6 +163,17 @@ double DoublyConnectedList::Face::calculatePerimeter()
 	this->m_Perimeter = perimeter;
 	return this->m_Perimeter;
 }
+void DoublyConnectedList::Face::updateProperties() {
+	this->calculateArea();
+	this->calculatePerimeter();
+	auto halfEdge = this->getHalfEdge();
+	do
+	{
+		halfEdge->updateProperties();
+		halfEdge = halfEdge->getNextHalfEdge();
+	} while (halfEdge != this->m_HalfEdgeComponent);
+}
+
 void DoublyConnectedList::Face::calculateEdgeCount()
 {
 	this->m_EdgeCount = 0;
@@ -172,37 +187,37 @@ void DoublyConnectedList::Face::calculateEdgeCount()
 int DoublyConnectedList::Face::getEdgeCount() const { return this->m_EdgeCount; }
 void DoublyConnectedList::Face::setHalfEdge(std::shared_ptr<DoublyConnectedList::HalfEdge> halfEdge) { this->m_HalfEdgeComponent = halfEdge; }
 std::shared_ptr<DoublyConnectedList::HalfEdge> DoublyConnectedList::Face::getHalfEdge() const { return this->m_HalfEdgeComponent; }
-bool DoublyConnectedList::Face::isInside(std::shared_ptr<DoublyConnectedList::Vertex> point)
+bool DoublyConnectedList::Face::isInside(const DoublyConnectedList::Vertex::Coordinates& pointCooridnate)
 {
 	auto halfEdge = this->m_HalfEdgeComponent;
 	do
 	{
-		if (!halfEdge->isPointOnLeft(point))
+		if (!halfEdge->isPointOnLeft(pointCooridnate))
 			return false;
 		halfEdge = halfEdge->getNextHalfEdge();
 	} while (halfEdge != this->m_HalfEdgeComponent);
 	return true;
 }
-std::shared_ptr<DoublyConnectedList::HalfEdge> DoublyConnectedList::Face::isOn(std::shared_ptr<DoublyConnectedList::Vertex> point)
+std::shared_ptr<DoublyConnectedList::HalfEdge> DoublyConnectedList::Face::isOn(const DoublyConnectedList::Vertex::Coordinates& pointCooridnate)
 {
 	auto halfEdge = this->m_HalfEdgeComponent;
 	do
 	{
-		if (halfEdge->isPointOn(point))
+		if (halfEdge->isPointOn(pointCooridnate))
 			return halfEdge;
 		halfEdge = halfEdge->getNextHalfEdge();
 	} while (halfEdge != this->m_HalfEdgeComponent);
 	return nullptr;
 }
-std::shared_ptr<DoublyConnectedList::Vertex> DoublyConnectedList::Face::getClosestPoint(std::shared_ptr<DoublyConnectedList::Vertex> vert)
+std::shared_ptr<DoublyConnectedList::Vertex> DoublyConnectedList::Face::getClosestPoint(const DoublyConnectedList::Vertex::Coordinates& pointCooridnate)
 {
 	double closestDistance = DBL_MAX;
 	std::shared_ptr<DoublyConnectedList::Vertex> closestpoint;
 	auto halfEdge = this->m_HalfEdgeComponent;
 	do {
 		auto origin = halfEdge->getOrigin();
-		double xDifference = vert->getCoordinate().xCoord - origin->getCoordinate().xCoord;
-		double yDifference = vert->getCoordinate().yCoord - origin->getCoordinate().yCoord;
+		double xDifference = pointCooridnate.xCoord - origin->getCoordinate().xCoord;
+		double yDifference = pointCooridnate.yCoord - origin->getCoordinate().yCoord;
 		double distance = sqrt(pow(xDifference, 2) + pow(yDifference, 2));
 		if (distance < closestDistance) {
 			closestDistance = distance;
@@ -369,12 +384,12 @@ void DoublyConnectedList::DCEL::deleteEdge(std::shared_ptr<DoublyConnectedList::
 void DoublyConnectedList::DCEL::addVertex(double xCoord, double yCoord, std::vector<int> verticesToConnect)
 {
 	auto newVertex = std::make_shared<DoublyConnectedList::Vertex>(xCoord, yCoord);
-	auto faceThatContainNewVertex = this->findPoint(newVertex);
+	auto faceThatContainNewVertex = this->findPoint(newVertex->getCoordinate());
 
 	this->m_Vertices.push_back(newVertex);
 	this->updateVertexIds();
 
-	auto halfEdge = faceThatContainNewVertex->isOn(newVertex);
+	auto halfEdge = faceThatContainNewVertex->isOn(newVertex->getCoordinate());
 	if (halfEdge) {
 		this->addVertexOnTheEdge(halfEdge, newVertex);
 	}
@@ -384,12 +399,12 @@ void DoublyConnectedList::DCEL::addVertex(double xCoord, double yCoord, std::vec
 }
 void DoublyConnectedList::DCEL::addVertex(std::shared_ptr<DoublyConnectedList::Vertex> vertex, std::vector<int> verticesToConnect)
 {
-	auto faceThatContainNewVertex = this->findPoint(vertex);
+	auto faceThatContainNewVertex = this->findPoint(vertex->getCoordinate());
 
 	this->m_Vertices.push_back(vertex);
 	this->updateVertexIds();
 
-	auto halfEdge = faceThatContainNewVertex->isOn(vertex);
+	auto halfEdge = faceThatContainNewVertex->isOn(vertex->getCoordinate());
 	if (halfEdge) {
 		this->addVertexOnTheEdge(halfEdge, vertex);
 	}
@@ -488,15 +503,15 @@ void DoublyConnectedList::DCEL::buildDCEL(const std::vector<std::shared_ptr<Doub
 		face->calculateEdgeCount();
 	}
 }
-std::shared_ptr<DoublyConnectedList::Face> DoublyConnectedList::DCEL::findPoint(std::shared_ptr<DoublyConnectedList::Vertex> point)
+std::shared_ptr<DoublyConnectedList::Face> DoublyConnectedList::DCEL::findPoint(const DoublyConnectedList::Vertex::Coordinates& pointCoordinates)
 {
 	for (auto& face : this->m_Faces)
 	{
 		if (face->isExternal())
 			continue;
-		else if (face->isInside(point))
+		else if (face->isInside(pointCoordinates))
 			return face;
-		else if (face->isOn(point))
+		else if (face->isOn(pointCoordinates))
 			return face;
 	}
 	return nullptr;
