@@ -143,6 +143,7 @@ namespace DoublyConnectedList
 		const std::vector<std::shared_ptr<DoublyConnectedList::HalfEdge>>& getHalfEdges() const;
 		const std::vector<std::shared_ptr<DoublyConnectedList::Face>>& getFaces() const;
 		void updateVertexIds();
+		void updateSystem();
 		std::shared_ptr<DoublyConnectedList::Face> findPoint(const DoublyConnectedList::Vertex::Coordinates& pointCoordinates);
 		void addEdge(int vertId1, int vertId2);
 		void deleteEdge(std::shared_ptr<DoublyConnectedList::HalfEdge> edge);
