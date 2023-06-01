@@ -28,6 +28,8 @@ bool BasicQuadMesh::TryMesh(std::vector<std::shared_ptr<MeshData::Domain>>& doma
 	if (!this->AddLineConstraint(domains))
 		return false;
 
+	TriangleToQuad(domains);
+
 	return this->CheckQualityOfMesh(domains);
 }
 void BasicQuadMesh::BuildInitialGrid(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
@@ -179,9 +181,9 @@ void BasicQuadMesh::BuildInitialGrid(std::vector<std::shared_ptr<MeshData::Domai
 				auto angle1 = halfEdge->getAngle();
 				auto prevHalfEdge = halfEdge->getPrevHalfEdge();
 				auto angle2 = prevHalfEdge->getAngle();
-				auto angle = pi - angle1 + angle2;
-				while (angle > 2 * pi)
-					angle -= 2 * pi;
+				auto angle = PI - angle1 + angle2;
+				while (angle > 2 * PI)
+					angle -= 2 * PI;
 				if (angle > biggestAngle) {
 					biggestAngle = angle;
 					halfEdgeWithBiggestAngleOrigin = halfEdge;
@@ -380,6 +382,98 @@ void BasicQuadMesh::FindOptimumEdgeLength(const std::vector<std::shared_ptr<Mesh
 		this->m_EdgeDivideNum.push_back({ divideNumberForEdge13 , divideNumberForEdge24 });
 	}
 }
+void BasicQuadMesh::TriangleToQuad(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
+	for (auto domain : domains) {
+		auto DCEL = domain->getDCEL();
+		auto graph = this->GenerateGraph(domain);
+		auto numberOfVertices = domain->getDCEL()->getFaces().size() - 1;
+		std::vector<boost::graph_traits< my_graph >::vertex_descriptor > mate(
+			numberOfVertices);
+		maximum_weighted_matching(graph, &mate[0]);
+		std::unordered_set<int> vertices;
+
+		for (size_t i = 0; i < mate.size(); i++) {
+			if (vertices.find(i) != vertices.end() || (mate[i] > (mate.size() - 1)))
+				continue;
+			auto face1 = graph[i].face;
+			auto face2 = graph[mate[i]].face;
+
+			vertices.insert(mate[i]);
+
+			std::shared_ptr<DoublyConnectedList::HalfEdge> halfEdge;
+			auto hEdge = face1->getHalfEdge();
+			do {
+				if (hEdge->getTwinHalfEdge()->getIncidentFace() == face2) {
+					halfEdge = hEdge;
+					break;
+				}
+				hEdge = hEdge->getNextHalfEdge();
+			} while (hEdge != face1->getHalfEdge());
+
+			if(halfEdge)
+				DCEL->deleteEdge(halfEdge);
+		}
+	}
+}
+my_graph BasicQuadMesh::GenerateGraph(std::shared_ptr<MeshData::Domain> domain) {
+	auto DCEL = domain->getDCEL();
+	std::unordered_set<std::shared_ptr<DoublyConnectedList::Face>> faces;
+	std::unordered_map<std::shared_ptr<DoublyConnectedList::Face>, vertex_t> vertices;
+
+	auto assignWeight = [this](std::shared_ptr<DoublyConnectedList::HalfEdge> halfEdge) {
+		if (halfEdge->getOrigin()->constriantType() == DoublyConnectedList::Vertex::Constraints::LINE &&
+			halfEdge->getTwinHalfEdge()->getOrigin()->constriantType() == DoublyConnectedList::Vertex::Constraints::LINE)
+			return -10000.0;
+
+		std::vector<double> internalAngles;
+
+		auto getAngle = [](std::shared_ptr<DoublyConnectedList::HalfEdge> halfEdge) {
+			auto angle1 = halfEdge->getAngle();
+			auto prevHalfEdge = halfEdge->getPrevHalfEdge();
+			auto angle2 = prevHalfEdge->getAngle();
+			auto angle = PI - angle1 + angle2;
+			while (angle > 2 * PI)
+				angle -= 2 * PI;
+
+			return angle * 180.0 / PI;
+		};
+
+		internalAngles.push_back(getAngle(halfEdge) + getAngle(halfEdge->getTwinHalfEdge()->getNextHalfEdge()));
+		internalAngles.push_back(getAngle(halfEdge->getNextHalfEdge()) + getAngle(halfEdge->getTwinHalfEdge()));
+		internalAngles.push_back(getAngle(halfEdge->getNextHalfEdge()->getNextHalfEdge()));
+		internalAngles.push_back(getAngle(halfEdge->getTwinHalfEdge()->getNextHalfEdge()->getNextHalfEdge()));
+
+		std::sort(internalAngles.begin(), internalAngles.end());
+		if(internalAngles[3] > 140.0)
+			return -10000.0;
+
+		auto stdDeviation = this->StandardDeviation(internalAngles);
+		return 1.0 / (1.0 + stdDeviation);
+	};
+
+	// The number of vertices of the graph will be equal to the number of faces except the external face.
+	my_graph graph;
+	for (auto face : DCEL->getFaces()) {
+		if (face->isExternal())
+			continue;
+		vertex_t newVertex = boost::add_vertex(graph);
+		graph[newVertex].face = face;
+		vertices[face] = newVertex;
+	}
+	for (auto face : DCEL->getFaces()) {
+		if (face->isExternal())
+			continue;
+		faces.insert(face);
+		auto halfEdge = face->getHalfEdge();
+		do {
+			auto twinHalfEdgeFace = halfEdge->getTwinHalfEdge()->getIncidentFace();
+			if (!twinHalfEdgeFace->isExternal() && (faces.find(twinHalfEdgeFace) == faces.end())) 
+				boost::add_edge(vertices[face], vertices[twinHalfEdgeFace], EdgeProperty(assignWeight(halfEdge)), graph);
+			halfEdge = halfEdge->getNextHalfEdge();
+		} while (halfEdge != face->getHalfEdge());
+	}
+	return graph;
+}
 bool BasicQuadMesh::CheckQualityOfMesh(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
 	for (auto domain : domains) {
 
@@ -422,20 +516,19 @@ DoublyConnectedList::Vertex::Coordinates BasicQuadMesh::MapFromNeutralCoordinate
 		
 	return result;
 }
-
 double BasicQuadMesh::ApproximateGCD(const std::vector<double>& nums){
 
 	auto meanSin = [&nums](double period) {
 		double sum = 0.0;
 		for (auto num : nums)
-			sum += sin(2.0 * pi * num / period) / nums.size();
+			sum += sin(2.0 * PI * num / period) / nums.size();
 		return sum;
 	};
 
 	auto meanCos = [&nums](double period) {
 		double sum = 0.0;
 		for (auto num : nums)
-			sum += cos(2.0 * pi * num / period) / nums.size();
+			sum += cos(2.0 * PI * num / period) / nums.size();
 		return sum;
 	};
 
@@ -453,10 +546,18 @@ double BasicQuadMesh::ApproximateGCD(const std::vector<double>& nums){
 
 	return iterator;
 }
-
 double BasicQuadMesh::ApproximateLCM(const std::vector<double>& nums) {
 	double multiply = 1.0;
 	for (auto num : nums)
 		multiply *= num;
 	return multiply / ApproximateGCD(nums);
+}
+double BasicQuadMesh::StandardDeviation(const std::vector<double> nums) {
+	double sum = std::accumulate(nums.begin(), nums.end(), 0.0);
+	double mean = sum / nums.size();
+
+	std::vector<double> diff(nums.size());
+	std::transform(nums.begin(), nums.end(), diff.begin(), [mean](double x) { return x - mean; });
+	double sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
+	return std::sqrt(sq_sum / nums.size());
 }
