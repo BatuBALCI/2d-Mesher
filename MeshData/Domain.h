@@ -83,7 +83,7 @@ namespace MeshData
 		void addLineConstraint(std::shared_ptr<LineConstraint> lineConstraint);
 		void setEdgeLength(double length);
 		void setAspectRaito(double aspectRatio);
-		void generateDCEL(const std::vector<std::shared_ptr<DoublyConnectedList::Vertex>>& vertexInput, const std::vector<std::vector<int>>& edgeInput);
+		void generateDCEL(const std::vector<std::shared_ptr<DoublyConnectedList::Vertex>>& vertexInput, const std::vector<std::pair<int, int>>& edgeInput);
 
 		const std::vector<std::shared_ptr<Corner>>& getCorners() const;
 		const std::vector<std::shared_ptr<Corner>>& getShapePoints() const;

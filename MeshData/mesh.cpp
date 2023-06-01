@@ -3,7 +3,6 @@
 void BasicQuadMesh::Mesh(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
 	for (int i = 0; i < 5; i++) {
 		if (this->TryMesh(domains, i)) {
-			domains.at(0)->getDCEL()->ExportVTKFormat("try.vtk");
 			break;
 		}
 	}
@@ -23,21 +22,26 @@ bool BasicQuadMesh::TryMesh(std::vector<std::shared_ptr<MeshData::Domain>>& doma
 	}
 
 	this->BuildInitialGrid(domains);
+
 	if (!this->AddPointConstraints(domains))
 		return false;
 	if (!this->AddLineConstraint(domains))
 		return false;
+
+	TriangleToQuad(domains);
 
 	return this->CheckQualityOfMesh(domains);
 }
 void BasicQuadMesh::BuildInitialGrid(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
 	for (int i = 0; i < domains.size(); i++) {
 		std::vector<std::shared_ptr<DoublyConnectedList::Vertex>> vertexInput;
-		std::vector<std::vector<int>> edgeInput;
+		std::vector<std::pair<int, int>> edgeInput;
 		std::vector<std::shared_ptr<DoublyConnectedList::Vertex>> edge1Vertices;
 		std::vector<std::shared_ptr<DoublyConnectedList::Vertex>> edge2Vertices;
 		std::vector<std::shared_ptr<DoublyConnectedList::Vertex>> edge3Vertices;
 		std::vector<std::shared_ptr<DoublyConnectedList::Vertex>> edge4Vertices;
+
+		std::unordered_map<std::shared_ptr<DoublyConnectedList::Face>, std::shared_ptr<DoublyConnectedList::HalfEdge>> faceWithBottomHalfEdge;
 
 		auto insertEdgeVertices = [&vertexInput](std::vector<std::shared_ptr<DoublyConnectedList::Vertex>> edgeVertices, size_t startOffset, size_t endOffset)
 		{
@@ -98,9 +102,9 @@ void BasicQuadMesh::BuildInitialGrid(std::vector<std::shared_ptr<MeshData::Domai
 		// Generate connectivity.
 		for (size_t i = 0; i < vertexInput.size() - 1; i++)
 		{
-			std::vector<int> connectivity;
-			connectivity.push_back(vertexInput.at(i)->getID());
-			connectivity.push_back(vertexInput.at(i + 1)->getID());
+			std::pair<int, int> connectivity;
+			connectivity.first = vertexInput.at(i)->getID();
+			connectivity.second = vertexInput.at(i + 1)->getID();
 			edgeInput.push_back(connectivity);
 		}
 		edgeInput.push_back({ vertexInput.back()->getID(), vertexInput.at(0)->getID() });
@@ -131,40 +135,40 @@ void BasicQuadMesh::BuildInitialGrid(std::vector<std::shared_ptr<MeshData::Domai
 				// hold the pointer of this new created vertex to use as last column while generating connectivity.
 				lastColumnDummy.push_back(newVertex);
 
-				std::vector<int> connectivity;
-				connectivity.push_back(newVertex->getID());
-				connectivity.push_back(lastVertex->getID());
+				std::pair<int, int> connectivity;
+				connectivity.first = newVertex->getID();
+				connectivity.second = lastVertex->getID();
 				edgeInput.push_back(connectivity);
-				connectivity.clear();
 				lastVertex = newVertex;
 
-				connectivity.push_back(newVertex->getID());
-				connectivity.push_back(lastColumn.at(j-1)->getID());
+				connectivity.first = newVertex->getID();
+				connectivity.second = lastColumn.at(j-1)->getID();
 				edgeInput.push_back(connectivity);
-				connectivity.clear();
 
 				if (j == edge2Vertices.size() - 2) {
-					connectivity.push_back(newVertex->getID());
-					connectivity.push_back(edge3Vertices.at(edge3Vertices.size() - 1 - i)->getID());
+					connectivity.first = newVertex->getID();
+					connectivity.second = edge3Vertices.at(edge3Vertices.size() - 1 - i)->getID();
 					edgeInput.push_back(connectivity);
-					connectivity.clear();
 				}
 
 				if (i == edge1Vertices.size() - 2) {
-					connectivity.push_back(newVertex->getID());
-					connectivity.push_back(edge2Vertices.at(j)->getID());
+					connectivity.first = newVertex->getID();
+					connectivity.second = edge2Vertices.at(j)->getID();
 					edgeInput.push_back(connectivity);
-					connectivity.clear();
 				}
 			}
 			lastColumn = lastColumnDummy;
 			lastColumnDummy.clear();
 		}
 		domain->generateDCEL(vertexInput, edgeInput);
+		for (auto vertex : vertexInput) {
+			if (vertex->getHalfEdge().front()->getAngle() < 0.0000001  && !vertex->getHalfEdge().front()->getIncidentFace()->isExternal())
+				faceWithBottomHalfEdge[vertex->getHalfEdge().front()->getIncidentFace()] = vertex->getHalfEdge().front();
+			else if(vertex->getHalfEdge().back()->getAngle() > 2 * PI - 0.0000001 && !vertex->getHalfEdge().back()->getIncidentFace()->isExternal())
+				faceWithBottomHalfEdge[vertex->getHalfEdge().back()->getIncidentFace()] = vertex->getHalfEdge().back();
+		}
 		this->ReturnToCartesian(domain);
 		
-		domains.at(0)->getDCEL()->ExportVTKFormat("try.vtk");
-
 		// Divide the generated quads into triangles.
 		// The division takes place from the largest interior angle of the quad.
 		std::vector<std::pair<int, int>> newEdges;
@@ -174,20 +178,28 @@ void BasicQuadMesh::BuildInitialGrid(std::vector<std::shared_ptr<MeshData::Domai
 			std::shared_ptr<DoublyConnectedList::HalfEdge> halfEdgeWithBiggestAngleOrigin;
 			double biggestAngle = 0.0;
 			auto halfEdge = face->getHalfEdge();
-			do
-			{
+
+			auto getAngle = [](std::shared_ptr<DoublyConnectedList::HalfEdge> halfEdge) {
 				auto angle1 = halfEdge->getAngle();
 				auto prevHalfEdge = halfEdge->getPrevHalfEdge();
 				auto angle2 = prevHalfEdge->getAngle();
-				auto angle = pi - angle1 + angle2;
-				while (angle > 2 * pi)
-					angle -= 2 * pi;
+				auto angle = PI - angle1 + angle2;
+				while (angle > 2 * PI)
+					angle -= 2 * PI;
+				return angle;
+			};
+			do
+			{
+				auto angle = getAngle(halfEdge);
 				if (angle > biggestAngle) {
 					biggestAngle = angle;
 					halfEdgeWithBiggestAngleOrigin = halfEdge;
 				}
 				halfEdge = halfEdge->getNextHalfEdge();
 			} while (halfEdge != face->getHalfEdge());
+			if (biggestAngle < (PI/2.0) + 0.0000001 || getAngle(faceWithBottomHalfEdge[face]) > (PI / 2.0) || 
+				getAngle(faceWithBottomHalfEdge[face]->getNextHalfEdge()->getNextHalfEdge()) > (PI / 2.0))
+				halfEdgeWithBiggestAngleOrigin = faceWithBottomHalfEdge[face];
 			newEdges.push_back({ halfEdgeWithBiggestAngleOrigin->getOrigin()->getID(), halfEdgeWithBiggestAngleOrigin->getNextHalfEdge()->getNextHalfEdge()->getOrigin()->getID() });
 		}
 		for (auto edge : newEdges)
@@ -222,6 +234,8 @@ bool BasicQuadMesh::AddConstraint(std::shared_ptr<MeshData::Domain> domain, cons
 	closestVertex->setConstraint(type);
 	// Set the new coordinates.
 	closestVertex->setCoordinate(constrainCoordinate);
+	// Update connections.
+	closestVertex->updateConnections();
 	return true;
 }
 bool BasicQuadMesh::AddLineConstraint(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
@@ -238,17 +252,27 @@ bool BasicQuadMesh::AddLineConstraint(std::vector<std::shared_ptr<MeshData::Doma
 			
 			auto iterVert = DCEL->findPoint(lineConstraint->getStartCoordinates())->getClosestPoint(lineConstraint->getStartCoordinates());
 			while (true) {
+				endFace = DCEL->findPoint(lineConstraint->getEndCoordinates());
+				bool isFound = false;
+				for (auto hEdge : iterVert->getHalfEdge()) {
+					if (hEdge->getIncidentFace() == endFace) {
+						isFound = true;
+						break;
+					}
+				}
+				if(isFound)
+					break;
+
 				auto lineDirection = lineConstraint->getEndCoordinates() - iterVert->getCoordinate();
 				auto lineDummyHalfEdge = DoublyConnectedList::HalfEdge(iterVert, endVertex);
 				std::shared_ptr<DoublyConnectedList::HalfEdge> halfEdge;
 				for (auto hEdge : iterVert->getHalfEdge()) {
-					halfEdge = hEdge;
-					if (hEdge->getAngle() <= lineDummyHalfEdge.getAngle())
+					if (hEdge->getAngle() > lineDummyHalfEdge.getAngle())
 						break;
+					halfEdge = hEdge;
 				}
-				endFace = DCEL->findPoint(lineConstraint->getEndCoordinates());
-				if (halfEdge->getIncidentFace() == endFace)
-					break;
+				if (!halfEdge)
+					halfEdge = iterVert->getHalfEdge().back();
 
 				auto frontEdgeDirection = halfEdge->getPrevHalfEdge()->getOrigin()->getCoordinate() - halfEdge->getNextHalfEdge()->getOrigin()->getCoordinate();
 				auto intersecton = RayIntersection(halfEdge->getNextHalfEdge()->getOrigin()->getCoordinate(), frontEdgeDirection, iterVert->getCoordinate(), lineDirection);
@@ -256,14 +280,13 @@ bool BasicQuadMesh::AddLineConstraint(std::vector<std::shared_ptr<MeshData::Doma
 				auto dist1 = sqrt((halfEdge->getPrevHalfEdge()->getOrigin()->getCoordinate() - intersecton) * (halfEdge->getPrevHalfEdge()->getOrigin()->getCoordinate() - intersecton));
 				auto dist2 = sqrt((halfEdge->getNextHalfEdge()->getOrigin()->getCoordinate() - intersecton) * (halfEdge->getNextHalfEdge()->getOrigin()->getCoordinate() - intersecton));
 
-				if (dist1 < dist2) {
-					halfEdge->getPrevHalfEdge()->getOrigin()->setCoordinate(intersecton);
+				if (dist1 < dist2) 
 					iterVert = halfEdge->getPrevHalfEdge()->getOrigin();
-				}
-				else {
-					halfEdge->getNextHalfEdge()->getOrigin()->setCoordinate(intersecton);
+				else 
 					iterVert = halfEdge->getNextHalfEdge()->getOrigin();
-				}
+				iterVert->setCoordinate(intersecton);
+				iterVert->setConstraint(DoublyConnectedList::Vertex::Constraints::LINE);
+				iterVert->updateConnections();
 			}
 			if (!AddConstraint(domain, lineConstraint->getEndCoordinates(), DoublyConnectedList::Vertex::Constraints::LINE))
 				return false;
@@ -370,15 +393,118 @@ void BasicQuadMesh::FindOptimumEdgeLength(const std::vector<std::shared_ptr<Mesh
 		if (!(this->m_OptimumLength > edgeLength4))
 			edgeLength4 = edgeLength4 / ceil(edgeLength4 / this->m_OptimumLength);
 
-		double divideNumberForEdge13, divideNumberForEdge24;
-
-		divideNumberForEdge13 = domain->getEdges().at(0)->getLength() / edgeLength1 < domain->getEdges().at(2)->getLength() / edgeLength3 ? domain->getEdges().at(0)->getLength() / edgeLength1 : domain->getEdges().at(2)->getLength() / edgeLength3;
-		divideNumberForEdge24 = domain->getEdges().at(1)->getLength() / edgeLength2 < domain->getEdges().at(3)->getLength() / edgeLength4 ? domain->getEdges().at(1)->getLength() / edgeLength2 : domain->getEdges().at(3)->getLength() / edgeLength4;
+		double divideNumberForEdge13 = domain->getEdges().at(0)->getLength() / edgeLength1 < domain->getEdges().at(2)->getLength() / edgeLength3 ? domain->getEdges().at(2)->getLength() / edgeLength1 : domain->getEdges().at(0)->getLength() / edgeLength3;
+		double divideNumberForEdge24 = domain->getEdges().at(1)->getLength() / edgeLength2 < domain->getEdges().at(3)->getLength() / edgeLength4 ? domain->getEdges().at(3)->getLength() / edgeLength2 : domain->getEdges().at(1)->getLength() / edgeLength4;
 
 		// TODO if there are more than one domain than change this part to have compatible divide numbers at the intersection edges.
 		// add the divide numbers to the vector.
 		this->m_EdgeDivideNum.push_back({ divideNumberForEdge13 , divideNumberForEdge24 });
 	}
+}
+void BasicQuadMesh::TriangleToQuad(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
+	for (auto domain : domains) {
+		// Get the generated DCEL.
+		auto DCEL = domain->getDCEL();
+		// Generate dual graph.
+		auto graph = this->GenerateGraph(domain);
+		auto numberOfVertices = domain->getDCEL()->getFaces().size() - 1;
+		std::vector<boost::graph_traits< my_graph >::vertex_descriptor > mate(
+			numberOfVertices);
+		// Find the matching that has maximum total weight of the grqph.
+		maximum_weighted_matching(graph, &mate[0]);
+		std::unordered_set<int> vertices;
+
+		// Iterate over all of the found matchings.
+		for (size_t i = 0; i < mate.size(); i++) {
+			// If the matching already proessed or if there is no matchinf continue.
+			if (vertices.find(i) != vertices.end() || (mate[i] > (mate.size() - 1)))
+				continue;
+			// Get the faces that has matching.
+			auto face1 = graph[i].face;
+			auto face2 = graph[mate[i]].face;
+
+			vertices.insert(mate[i]);
+
+			// Find the common edge between them to delete.
+			std::shared_ptr<DoublyConnectedList::HalfEdge> halfEdge;
+			auto hEdge = face1->getHalfEdge();
+			do {
+				if (hEdge->getTwinHalfEdge()->getIncidentFace() == face2) {
+					halfEdge = hEdge;
+					break;
+				}
+				hEdge = hEdge->getNextHalfEdge();
+			} while (hEdge != face1->getHalfEdge());
+
+			// If the edge is found delete it.
+			if(halfEdge)
+				DCEL->deleteEdge(halfEdge);
+		}
+	}
+}
+my_graph BasicQuadMesh::GenerateGraph(std::shared_ptr<MeshData::Domain> domain) {
+	auto DCEL = domain->getDCEL();
+	std::unordered_set<std::shared_ptr<DoublyConnectedList::HalfEdge>> hEdges;
+	std::unordered_map<std::shared_ptr<DoublyConnectedList::Face>, vertex_t> vertices;
+
+	// Assing the weight of the given edge.
+	auto assignWeight = [this](std::shared_ptr<DoublyConnectedList::HalfEdge> halfEdge) {
+		// If the edge is line constraint then assign really low weight value to ensure that this edge won't be deleted.
+		if (halfEdge->getOrigin()->constriantType() == DoublyConnectedList::Vertex::Constraints::LINE &&
+			halfEdge->getTwinHalfEdge()->getOrigin()->constriantType() == DoublyConnectedList::Vertex::Constraints::LINE)
+			return -1000000.0;
+
+		std::vector<double> internalAngles;
+
+		// Find the angle between the given halfEdge and the previous of it.
+		auto getAngle = [](std::shared_ptr<DoublyConnectedList::HalfEdge> halfEdge) {
+			auto angle1 = halfEdge->getAngle();
+			auto prevHalfEdge = halfEdge->getPrevHalfEdge();
+			auto angle2 = prevHalfEdge->getAngle();
+			auto angle = PI - angle1 + angle2;
+			while (angle > 2 * PI)
+				angle -= 2 * PI;
+
+			return angle * 180.0 / PI;
+		};
+
+		// Calculate the internal angles of the possible quad. 
+		internalAngles.push_back(getAngle(halfEdge) + getAngle(halfEdge->getTwinHalfEdge()->getNextHalfEdge()));
+		internalAngles.push_back(getAngle(halfEdge->getNextHalfEdge()) + getAngle(halfEdge->getTwinHalfEdge()));
+		internalAngles.push_back(getAngle(halfEdge->getNextHalfEdge()->getNextHalfEdge()));
+		internalAngles.push_back(getAngle(halfEdge->getTwinHalfEdge()->getNextHalfEdge()->getNextHalfEdge()));
+
+		// If one of the internal angle of the quad that is going to be formed when the edge is delete is higher than the 140 degrees don't delete it.
+		// In order to ensure that the edge won't be deleted assing really low value.
+		std::sort(internalAngles.begin(), internalAngles.end());
+
+		if (internalAngles[3] > 145.0)
+			return -10000000.0;
+
+		// Assing weight of the edge by looking at the standard deviation of the internal angles of candidate quad.
+		auto stdDeviation = this->StandardDeviation(internalAngles);
+		return 200000.0 /pow((1 + stdDeviation),2 );
+	};
+
+	// The number of vertices of the graph will be equal to the number of faces except the external face.
+	my_graph graph;
+	for (auto face : DCEL->getFaces()) {
+		if (face->isExternal())
+			continue;
+		vertex_t newVertex = boost::add_vertex(graph);
+		graph[newVertex].face = face;
+		vertices[face] = newVertex;
+	}
+	for (auto hEdge : DCEL->getHalfEdges()) {
+		auto twinHEdge = hEdge->getTwinHalfEdge();
+		if (hEdge->getIncidentFace()->isExternal() || twinHEdge->getIncidentFace()->isExternal() ||
+			(hEdges.find(hEdge) != hEdges.end()) || (hEdges.find(twinHEdge) != hEdges.end()))
+			continue;
+		hEdges.insert(hEdge);
+		hEdges.insert(twinHEdge);
+		boost::add_edge(vertices[hEdge->getIncidentFace()], vertices[twinHEdge->getIncidentFace()], EdgeProperty(assignWeight(hEdge)), graph);
+	}
+	return graph;
 }
 bool BasicQuadMesh::CheckQualityOfMesh(std::vector<std::shared_ptr<MeshData::Domain>>& domains) {
 	for (auto domain : domains) {
@@ -398,16 +524,18 @@ DoublyConnectedList::Vertex::Coordinates BasicQuadMesh::RayIntersection(const Do
 	// normalize the direction vectors
 	auto dir1 = direction1.normalize();
 	auto dir2 = direction2.normalize();
+	auto offsetOrigin1 = origin1 - dir1;
+	auto offsetOrigin2 = origin2 - dir2;
 	// Caulculate the distance between the intersection point and the origin 2 by solving the intersection
 	// equation between 2 rays.
 	double distanceBetweenTheIntersectionAndOrigin2;
 	if (abs(dir1.xCoord) < 10e-15)
-		distanceBetweenTheIntersectionAndOrigin2 = (origin1.xCoord - origin2.xCoord) / dir2.xCoord;
+		distanceBetweenTheIntersectionAndOrigin2 = (offsetOrigin1.xCoord - offsetOrigin2.xCoord) / dir2.xCoord;
 	else
-		distanceBetweenTheIntersectionAndOrigin2 = (origin1.yCoord + dir1.yCoord * (origin2.xCoord - origin1.xCoord) / dir1.xCoord - origin2.yCoord) /
+		distanceBetweenTheIntersectionAndOrigin2 = (offsetOrigin1.yCoord + dir1.yCoord * (offsetOrigin2.xCoord - offsetOrigin1.xCoord) / dir1.xCoord - offsetOrigin2.yCoord) /
 		(dir2.yCoord - dir2.xCoord * dir1.yCoord / dir1.xCoord);
 
-	auto result = origin2 + dir2 * distanceBetweenTheIntersectionAndOrigin2;
+	auto result = offsetOrigin2 + dir2 * distanceBetweenTheIntersectionAndOrigin2;
 	return result;
 }
 
@@ -422,20 +550,19 @@ DoublyConnectedList::Vertex::Coordinates BasicQuadMesh::MapFromNeutralCoordinate
 		
 	return result;
 }
-
 double BasicQuadMesh::ApproximateGCD(const std::vector<double>& nums){
 
 	auto meanSin = [&nums](double period) {
 		double sum = 0.0;
 		for (auto num : nums)
-			sum += sin(2.0 * pi * num / period) / nums.size();
+			sum += sin(2.0 * PI * num / period) / nums.size();
 		return sum;
 	};
 
 	auto meanCos = [&nums](double period) {
 		double sum = 0.0;
 		for (auto num : nums)
-			sum += cos(2.0 * pi * num / period) / nums.size();
+			sum += cos(2.0 * PI * num / period) / nums.size();
 		return sum;
 	};
 
@@ -453,10 +580,18 @@ double BasicQuadMesh::ApproximateGCD(const std::vector<double>& nums){
 
 	return iterator;
 }
-
 double BasicQuadMesh::ApproximateLCM(const std::vector<double>& nums) {
 	double multiply = 1.0;
 	for (auto num : nums)
 		multiply *= num;
 	return multiply / ApproximateGCD(nums);
+}
+double BasicQuadMesh::StandardDeviation(const std::vector<double> nums) {
+	double sum = std::accumulate(nums.begin(), nums.end(), 0.0);
+	double mean = sum / nums.size();
+
+	std::vector<double> diff(nums.size());
+	std::transform(nums.begin(), nums.end(), diff.begin(), [mean](double x) { return x - mean; });
+	double sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
+	return std::sqrt(sq_sum / nums.size());
 }
