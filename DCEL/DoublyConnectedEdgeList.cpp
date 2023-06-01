@@ -71,7 +71,7 @@ void DoublyConnectedList::HalfEdge::calculateProperties(std::shared_ptr<DoublyCo
 	if (dy >= 0)
 		this->m_Angle = acos(dx / this->m_Length);
 	else
-		this->m_Angle = 2 * pi - acos(dx / this->m_Length);
+		this->m_Angle = 2 * PI - acos(dx / this->m_Length);
 }
 DoublyConnectedList::HalfEdge::HalfEdge(std::shared_ptr<DoublyConnectedList::Vertex> point1,
 	std::shared_ptr<DoublyConnectedList::Vertex> point2)
