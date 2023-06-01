@@ -266,6 +266,12 @@ const std::vector<std::shared_ptr<DoublyConnectedList::Vertex>>& DoublyConnected
 const std::vector<std::shared_ptr<DoublyConnectedList::HalfEdge>>& DoublyConnectedList::DCEL::getHalfEdges() const { return this->m_HalfEdges; }
 const std::vector<std::shared_ptr<DoublyConnectedList::Face>>& DoublyConnectedList::DCEL::getFaces() const { return this->m_Faces; }
 void DoublyConnectedList::DCEL::updateVertexIds() { int counter = 0; for (auto& vertex : this->m_Vertices) vertex->setID(counter++); }
+void DoublyConnectedList::DCEL::updateSystem() {
+	for (auto face : this->getFaces())
+		face->updateProperties();
+	for (auto halfEdge : this->getHalfEdges())
+		halfEdge->updateProperties();
+}
 void DoublyConnectedList::DCEL::addEdge(int vertId1, int vertId2)
 {
 	auto vertex1 = this->m_Vertices[vertId1];
