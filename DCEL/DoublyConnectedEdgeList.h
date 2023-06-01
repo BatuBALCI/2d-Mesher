@@ -1,5 +1,5 @@
 #pragma once
-#define pi 3.14159265358979323846
+#define PI 3.14159265358979323846
 #include <string>
 #include <memory>
 #include <vector>
