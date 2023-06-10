@@ -50,6 +50,7 @@ namespace DoublyConnectedList
 		int getID() const;
 		void addHalfEdge(std::shared_ptr<DoublyConnectedList::HalfEdge> halfEdge);
 		void angleSortEdges();
+		void updateConnections();
 		void prevAndNextAssignments();
 		void setCoordinate(DoublyConnectedList::Vertex::Coordinates coordinate);
 		const Coordinates& getCoordinate() const;
@@ -134,8 +135,8 @@ namespace DoublyConnectedList
 	{
 	public:
 		DCEL();
-		DCEL(std::vector<std::vector<double>> vertexInput, std::vector<std::vector<int>> edgeInput);
-		DCEL(const std::vector<std::shared_ptr<DoublyConnectedList::Vertex>>& vertexInput, const std::vector<std::vector<int>>& edgeInput);
+		DCEL(const std::vector<std::pair<double, double>>& vertexInput, const std::vector<std::pair<int, int>>& edgeInput);
+		DCEL(const std::vector<std::shared_ptr<DoublyConnectedList::Vertex>>& vertexInput, const std::vector<std::pair<int, int>>& edgeInput);
 		size_t getNumberOfVertices() const;
 		size_t getNumberOfHalfEdges() const;
 		size_t getNumberOfFaces() const;
@@ -155,8 +156,8 @@ namespace DoublyConnectedList
 		std::vector<std::shared_ptr<DoublyConnectedList::HalfEdge>> m_HalfEdges;
 		std::vector<std::shared_ptr<DoublyConnectedList::Face>> m_Faces;
 
-		void buildDCEL(std::vector<std::vector<double>> vertexInput, std::vector<std::vector<int>> edgeInput);
-		void buildDCEL(const std::vector<std::shared_ptr<DoublyConnectedList::Vertex>>& vertexInput, const std::vector<std::vector<int>>& edgeInput);
+		void buildDCEL(const std::vector<std::pair<double, double>>& vertexInput, const std::vector<std::pair<int, int>>& edgeInput);
+		void buildDCEL(const std::vector<std::shared_ptr<DoublyConnectedList::Vertex>>& vertexInput, const std::vector<std::pair<int, int>>& edgeInput);
 		void deleteEdgeFromList(std::shared_ptr<DoublyConnectedList::HalfEdge> edge);
 		void deleteVertexFromList(int ID);
 		void deleteFaceFromList(std::shared_ptr<DoublyConnectedList::Face> face);
