@@ -28,6 +28,14 @@ void DoublyConnectedList::Vertex::angleSortEdges()
 	};
 	std::sort(this->m_HalfEdges.begin(), this->m_HalfEdges.end(), sort);
 }
+void DoublyConnectedList::Vertex::updateConnections() {
+	for (auto hEdge : this->getHalfEdge()) {
+		// Update face and half edge properties.
+		hEdge->getIncidentFace()->updateProperties();
+	}
+	// Sort half edges
+	this->angleSortEdges();
+}
 void DoublyConnectedList::Vertex::prevAndNextAssignments()
 {
 	this->angleSortEdges();
@@ -112,7 +120,14 @@ bool DoublyConnectedList::HalfEdge::isPointOn(const DoublyConnectedList::Vertex:
 		{ (twinOrgCoor.xCoord - orgCoor.xCoord) ,  (twinOrgCoor.yCoord - orgCoor.yCoord) });
 	auto pointToOriginLength = sqrt(pow((pointCoordinates.xCoord - this->m_Origin->getCoordinate().xCoord), 2) +
 		pow((pointCoordinates.yCoord - this->m_Origin->getCoordinate().yCoord), 2));
-	return (abs(area) < 0.000001 && pointToOriginLength < this->m_Length);
+	// Get the dot product of two vectors: HalfEdge and the vector between the given point and HalfEdge origin
+	auto vec1 = (twinOrgCoor - orgCoor).normalize();
+	auto vec2 = (pointCoordinates - orgCoor);
+	if (vec2 * vec2 < 0.000001)
+		return true;
+	vec2 = vec2.normalize();
+
+	return (abs(area) < 0.000001 && pointToOriginLength < this->m_Length && (vec1 * vec2) > 0.0);
 }
 std::shared_ptr<DoublyConnectedList::Face> DoublyConnectedList::HalfEdge::faceAssignmentToEdges(std::shared_ptr<DoublyConnectedList::HalfEdge> itself)
 {
@@ -164,14 +179,14 @@ double DoublyConnectedList::Face::calculatePerimeter()
 	return this->m_Perimeter;
 }
 void DoublyConnectedList::Face::updateProperties() {
-	this->calculateArea();
-	this->calculatePerimeter();
 	auto halfEdge = this->getHalfEdge();
 	do
 	{
 		halfEdge->updateProperties();
 		halfEdge = halfEdge->getNextHalfEdge();
 	} while (halfEdge != this->m_HalfEdgeComponent);
+	this->calculateArea();
+	this->calculatePerimeter();
 }
 
 void DoublyConnectedList::Face::calculateEdgeCount()
@@ -243,8 +258,8 @@ void DoublyConnectedList::Face::clearFaceAssignments()
 DoublyConnectedList::DCEL::DCEL() : m_Vertices(std::vector<std::shared_ptr<DoublyConnectedList::Vertex>>()),
 m_HalfEdges(std::vector<std::shared_ptr<DoublyConnectedList::HalfEdge>>()),
 m_Faces(std::vector<std::shared_ptr<DoublyConnectedList::Face>>()) {}
-DoublyConnectedList::DCEL::DCEL(std::vector<std::vector<double>> vertexInput,
-	std::vector<std::vector<int>> edgeInput) : m_Vertices(std::vector<std::shared_ptr<DoublyConnectedList::Vertex>>()),
+DoublyConnectedList::DCEL::DCEL(const std::vector<std::pair<double, double>>& vertexInput, 
+	const std::vector<std::pair<int, int>>& edgeInput) : m_Vertices(std::vector<std::shared_ptr<DoublyConnectedList::Vertex>>()),
 	m_HalfEdges(std::vector<std::shared_ptr<DoublyConnectedList::HalfEdge>>()),
 	m_Faces(std::vector<std::shared_ptr<DoublyConnectedList::Face>>()) 
 {
@@ -252,7 +267,7 @@ DoublyConnectedList::DCEL::DCEL(std::vector<std::vector<double>> vertexInput,
 		buildDCEL(vertexInput, edgeInput);
 }
 DoublyConnectedList::DCEL::DCEL(const std::vector<std::shared_ptr<DoublyConnectedList::Vertex>>& vertexInput,
-	const std::vector<std::vector<int>>& edgeInput) : m_Vertices(std::vector<std::shared_ptr<DoublyConnectedList::Vertex>>()),
+	const std::vector<std::pair<int, int>>& edgeInput) : m_Vertices(std::vector<std::shared_ptr<DoublyConnectedList::Vertex>>()),
 	m_HalfEdges(std::vector<std::shared_ptr<DoublyConnectedList::HalfEdge>>()),
 	m_Faces(std::vector<std::shared_ptr<DoublyConnectedList::Face>>())
 {
@@ -269,8 +284,6 @@ void DoublyConnectedList::DCEL::updateVertexIds() { int counter = 0; for (auto& 
 void DoublyConnectedList::DCEL::updateSystem() {
 	for (auto face : this->getFaces())
 		face->updateProperties();
-	for (auto halfEdge : this->getHalfEdges())
-		halfEdge->updateProperties();
 }
 void DoublyConnectedList::DCEL::addEdge(int vertId1, int vertId2)
 {
@@ -442,17 +455,17 @@ void DoublyConnectedList::DCEL::deleteFaceFromList(std::shared_ptr<DoublyConnect
 	}
 	this->m_Faces.erase(this->m_Faces.begin() + counter, this->m_Faces.begin() + counter + 1);
 }
-void DoublyConnectedList::DCEL::buildDCEL(std::vector<std::vector<double>> vertexInput, std::vector<std::vector<int>> edgeInput)
+void DoublyConnectedList::DCEL::buildDCEL(const std::vector<std::pair<double, double>>& vertexInput, const std::vector<std::pair<int, int>>& edgeInput)
 {
 	// Create Vertices
 	int counter = this->m_Vertices.size();
 	for (auto& vInput : vertexInput)
-		this->m_Vertices.push_back(std::make_shared<DoublyConnectedList::Vertex>(vInput[0], vInput[1], counter++));
+		this->m_Vertices.push_back(std::make_shared<DoublyConnectedList::Vertex>(vInput.first, vInput.second, counter++));
 	
 	// Create Half-Edges
-	for (auto& eInput : edgeInput)
-		if (eInput[0] >= 0 && eInput[1] >= 0)
-			this->createHalfEdge(this->m_Vertices[eInput[0]], this->m_Vertices[eInput[1]]);
+	for (const auto& eInput : edgeInput)
+		if (eInput.first >= 0 && eInput.second >= 0)
+			this->createHalfEdge(this->m_Vertices[eInput.first], this->m_Vertices[eInput.second]);
 
 	// Half-Edge next and prev assignments
 	for (auto& vertex : this->m_Vertices)
@@ -474,7 +487,7 @@ void DoublyConnectedList::DCEL::buildDCEL(std::vector<std::vector<double>> verte
 		face->calculateEdgeCount();
 	}
 }
-void DoublyConnectedList::DCEL::buildDCEL(const std::vector<std::shared_ptr<DoublyConnectedList::Vertex>>& vertexInput, const std::vector<std::vector<int>>& edgeInput)
+void DoublyConnectedList::DCEL::buildDCEL(const std::vector<std::shared_ptr<DoublyConnectedList::Vertex>>& vertexInput, const std::vector<std::pair<int, int>>& edgeInput)
 {
 	// Create Vertices
 	int counter = this->m_Vertices.size();
@@ -486,8 +499,8 @@ void DoublyConnectedList::DCEL::buildDCEL(const std::vector<std::shared_ptr<Doub
 
 	// Create Half-Edges
 	for (auto& eInput : edgeInput)
-		if (eInput[0] >= 0 && eInput[1] >= 0)
-			this->createHalfEdge(this->m_Vertices[eInput[0]], this->m_Vertices[eInput[1]]);
+		if (eInput.first >= 0 && eInput.second >= 0)
+			this->createHalfEdge(this->m_Vertices[eInput.first], this->m_Vertices[eInput.second]);
 
 	// Half-Edge next and prev assignments
 	for (auto& vertex : this->m_Vertices)
