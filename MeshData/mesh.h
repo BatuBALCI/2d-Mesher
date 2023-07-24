@@ -19,6 +19,8 @@ public:
     BasicQuadMesh() = default;
 
     void Mesh(std::vector<std::shared_ptr<MeshData::Domain>>& domains);
+    void SetMaxQuadAngle(double maxQuadAngle);
+    void SetStdDeviationFunc(std::function<double(double)> stdDeviationFunction);
 
 private:
     void BuildInitialGrid(std::vector<std::shared_ptr<MeshData::Domain>>& domains);
@@ -44,4 +46,6 @@ private:
     // this is the vector that holds numbers that say how many lines that edge 1-3 and 2-4 will going to have on it respectively.; 
     std::vector<std::pair<int, int>> m_EdgeDivideNum;
     double m_OptimumLength;
+    double m_MaxQuadAngle = 145.0;
+    std::function<double(double)> stdDeviationFunction = [](double stdDev) {return 156.0 - stdDev; };
 };

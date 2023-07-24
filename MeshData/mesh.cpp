@@ -7,6 +7,8 @@ void BasicQuadMesh::Mesh(std::vector<std::shared_ptr<MeshData::Domain>>& domains
 		}
 	}
 }
+void BasicQuadMesh::SetMaxQuadAngle(double maxQuadAngle) { this->m_MaxQuadAngle = maxQuadAngle; }
+void BasicQuadMesh::SetStdDeviationFunc(std::function<double(double)> stdDeviationFunction) { this->stdDeviationFunction = stdDeviationFunction; };
 bool BasicQuadMesh::TryMesh(std::vector<std::shared_ptr<MeshData::Domain>>& domains, int tryCount) {
 	this->ClearDomain(domains);
 	if (tryCount == 0) {
@@ -14,12 +16,11 @@ bool BasicQuadMesh::TryMesh(std::vector<std::shared_ptr<MeshData::Domain>>& doma
 			return (a->getEdgeLength() < b->getEdgeLength());
 		};
 		this->m_OptimumLength = std::min_element(domains.begin(), domains.end(), comp)->get()->getEdgeLength();
-		this->FindOptimumEdgeLength(domains);
 	}
 	else {
 		this->m_OptimumLength /= 1.125;
-		this->FindOptimumEdgeLength(domains);
 	}
+	this->FindOptimumEdgeLength(domains);
 
 	this->BuildInitialGrid(domains);
 
@@ -478,12 +479,12 @@ my_graph BasicQuadMesh::GenerateGraph(std::shared_ptr<MeshData::Domain> domain) 
 		// In order to ensure that the edge won't be deleted assing really low value.
 		std::sort(internalAngles.begin(), internalAngles.end());
 
-		if (internalAngles[3] > 145.0)
+		if (internalAngles[3] > m_MaxQuadAngle)
 			return -10000000.0;
 
 		// Assing weight of the edge by looking at the standard deviation of the internal angles of candidate quad.
 		auto stdDeviation = this->StandardDeviation(internalAngles);
-		return 200000.0 /pow((1 + stdDeviation),2 );
+		return stdDeviationFunction(stdDeviation);
 	};
 
 	// The number of vertices of the graph will be equal to the number of faces except the external face.
@@ -518,6 +519,7 @@ void BasicQuadMesh::ClearDomain(std::vector<std::shared_ptr<MeshData::Domain>>& 
 		domain->reset();
 	}
 }
+
 
 DoublyConnectedList::Vertex::Coordinates BasicQuadMesh::RayIntersection(const DoublyConnectedList::Vertex::Coordinates& origin1, DoublyConnectedList::Vertex::Coordinates& direction1,
 	const DoublyConnectedList::Vertex::Coordinates& origin2, DoublyConnectedList::Vertex::Coordinates& direction2) {
